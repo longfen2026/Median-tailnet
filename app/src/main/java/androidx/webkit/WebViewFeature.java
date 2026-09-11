@@ -12,6 +12,7 @@ import androidx.webkit.internal.WebViewGlueCommunicator;
 public final class WebViewFeature {
     public static final String DOCUMENT_START_SCRIPT = "DOCUMENT_START_SCRIPT";
     public static final String ALGORITHMIC_DARKENING = "ALGORITHMIC_DARKENING";
+    public static final String PROXY_OVERRIDE = "PROXY_OVERRIDE";
 
     private WebViewFeature() {}
 
@@ -22,6 +23,8 @@ public final class WebViewFeature {
         if (ALGORITHMIC_DARKENING.equals(feature))
             return Build.VERSION.SDK_INT >= 33 ||
                     WebViewGlueCommunicator.isFeatureSupported(ALGORITHMIC_DARKENING);
+        if (PROXY_OVERRIDE.equals(feature))
+            return WebViewGlueCommunicator.isFeatureSupported(PROXY_OVERRIDE);
         throw new RuntimeException("Unknown feature " + feature);
     }
 }

@@ -1,3 +1,5 @@
+third_party/libtailscale/
+build/libtailscale/
 .gradle/
 .build-tools/
 .idea/

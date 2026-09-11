@@ -9,6 +9,13 @@ final String medianVersionName = '2.3.0'
 android {
     namespace 'com.xinyv.median'
     compileSdk 36
+    ndkVersion '28.2.13676358'
+
+    externalNativeBuild {
+        ndkBuild {
+            path file('src/main/jni/Android.mk')
+        }
+    }
 
     defaultConfig {
         applicationId 'com.xinyv.median.compat'
@@ -18,6 +25,12 @@ android {
         versionName medianVersionName
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         vectorDrawables.useSupportLibrary = false
+        externalNativeBuild {
+            ndkBuild {
+                arguments 'APP_PLATFORM=android-26'
+                abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            }
+        }
     }
 
     signingConfigs {
@@ -83,6 +96,24 @@ android {
                 'META-INF/LICENSE*',
                 'META-INF/NOTICE*'
         ]
+    }
+}
+
+def buildLibTailscale = tasks.register('buildLibTailscale', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+            'tools/build_libtailscale_android.ps1'
+}
+
+def verifyLibTailscaleArtifacts = tasks.register('verifyLibTailscaleArtifacts') {
+    dependsOn buildLibTailscale
+    doLast {
+        ['arm64-v8a', 'armeabi-v7a', 'x86_64'].each { abi ->
+            def library = rootProject.file("build/libtailscale/${abi}/libtailscale.so")
+            if (!library.isFile()) {
+                throw new GradleException("Missing libtailscale artifact for ${abi}: ${library}")
+            }
+        }
     }
 }
 

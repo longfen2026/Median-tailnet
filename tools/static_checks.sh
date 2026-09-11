@@ -129,6 +129,12 @@ rg -Fq 'android:authorities="${applicationId}.downloads"' app/src/main/AndroidMa
 rg -q 'EXPECTED_SHA256=20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78' gradlew
 rg -Fq 'BuildConfig.APPLICATION_ID + ".offline"' app/src/main/java/com/xinyv/median/OfflineContentProvider.java
 rg -Fq 'android:taskAffinity="${applicationId}.private"' app/src/main/AndroidManifest.xml
+rg -Fq 'android:process=":tailnet"' app/src/main/AndroidManifest.xml
+rg -Fq 'android:taskAffinity="${applicationId}.tailnet"' app/src/main/AndroidManifest.xml
+rg -Fq 'static final String PROCESS_SUFFIX = ":tailnet"' app/src/main/java/com/xinyv/median/TailnetPolicy.java
+rg -Fq 'WebViewFeature.PROXY_OVERRIDE' app/src/main/java/com/xinyv/median/TailnetProxyController.java
+rg -Fq 'TailnetPolicy.normalizeLoopbackSocksUrl(source)' app/src/main/java/com/xinyv/median/TailnetProxyController.java
+rg -Fq '"[" + host + "]"' app/src/main/java/com/xinyv/median/TailnetPolicy.java
 rg -Fq 'NetworkSecurity.isCredentialHeader(name)' app/src/main/java/com/xinyv/median/MainActivity.java
 rg -Fq 'NetworkSecurity.isCredentialHeader(name)' app/src/main/java/com/xinyv/median/AdaptiveDownloadService.java
 rg -Fq 'parseContentRange(connection.getHeaderField("Content-Range"))' app/src/main/java/com/xinyv/median/AdaptiveDownloadService.java
@@ -381,6 +387,10 @@ if rg -n 'STOREPASS.*android|KEYPASS.*android|median-debug\.p12|keytool.*-storep
   exit 1
 fi
 bash -n build.sh tools/build_500kb_apk.sh tools/verify.sh tools/verify_release_tag.sh tools/tests/userscript_js_syntax_test.sh
+grep -Fq "\$commit = '59d4bb82744915815178e0f0776d60026a397ee7'" tools/build_libtailscale_android.ps1
+grep -Fq "\$expectedGo = 'go1.25.5'" tools/build_libtailscale_android.ps1
+grep -Fq "\$expectedNdk = '28.2.13676358'" tools/build_libtailscale_android.ps1
+grep -Fq -- "-buildmode=c-shared" tools/build_libtailscale_android.ps1
 node --check tools/tests/homepage_behavior_test.js
 sh -n gradlew
 
@@ -398,6 +408,10 @@ javac --release 17 -d "$TMP" \
   app/src/main/java/com/xinyv/median/StartupReadiness.java \
   tools/tests/StartupReadinessSelfTest.java
 java -cp "$TMP" com.xinyv.median.StartupReadinessSelfTest
+javac --release 17 -d "$TMP" \
+  app/src/main/java/com/xinyv/median/TailnetPolicy.java \
+  tools/tests/TailnetPolicySelfTest.java
+java -cp "$TMP" com.xinyv.median.TailnetPolicySelfTest
 javac --release 17 -d "$TMP" \
   app/src/main/java/com/xinyv/median/InitialNavigationGuard.java \
   tools/tests/InitialNavigationGuardSelfTest.java

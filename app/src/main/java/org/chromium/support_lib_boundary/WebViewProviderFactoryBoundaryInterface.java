@@ -7,5 +7,6 @@ import java.lang.reflect.InvocationHandler;
 public interface WebViewProviderFactoryBoundaryInterface {
     InvocationHandler createWebView(WebView webView);
     InvocationHandler getWebkitToCompatConverter();
+    InvocationHandler getProxyController();
     String[] getSupportedFeatures();
 }

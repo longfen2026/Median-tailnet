@@ -10,6 +10,7 @@ import android.webkit.WebView;
 import androidx.webkit.ScriptHandler;
 
 import org.chromium.support_lib_boundary.ScriptHandlerBoundaryInterface;
+import org.chromium.support_lib_boundary.ProxyControllerBoundaryInterface;
 import org.chromium.support_lib_boundary.WebSettingsBoundaryInterface;
 import org.chromium.support_lib_boundary.WebViewProviderBoundaryInterface;
 import org.chromium.support_lib_boundary.WebViewProviderFactoryBoundaryInterface;
@@ -18,6 +19,7 @@ import org.chromium.support_lib_boundary.util.BoundaryInterfaceReflectionUtil;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.concurrent.Executor;
 
 /** Minimal Chromium boundary used by Median for document-start and renderer darkening. */
 public final class WebViewGlueCommunicator {
@@ -92,6 +94,15 @@ public final class WebViewGlueCommunicator {
                 + "\n状态: " + state;
     }
 
+    public static void setProxyOverride(String proxyUrl, Executor executor, Runnable listener) {
+        ProxyControllerBoundaryInterface controller = proxyController();
+        controller.setProxyOverride(new String[][] { { "*", proxyUrl } }, new String[0], listener, executor);
+    }
+
+    public static void clearProxyOverride(Executor executor, Runnable listener) {
+        proxyController().clearProxyOverride(listener, executor);
+    }
+
     public static void invalidate() {
         synchronized (WebViewGlueCommunicator.class) {
             factory = null;
@@ -109,6 +120,19 @@ public final class WebViewGlueCommunicator {
                     && (feature + ":dev").equals(value))) return true;
         }
         return false;
+    }
+
+    private static ProxyControllerBoundaryInterface proxyController() {
+        load();
+        if (factory == null || !has("PROXY_OVERRIDE"))
+            throw new UnsupportedOperationException("proxy override unavailable");
+        try {
+            return BoundaryInterfaceReflectionUtil.castToSuppLibClass(
+                    ProxyControllerBoundaryInterface.class, factory.getProxyController());
+        } catch (RuntimeException error) {
+            state = error.getClass().getSimpleName();
+            throw error;
+        }
     }
 
     private static void load() {

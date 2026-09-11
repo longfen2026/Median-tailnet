@@ -19,3 +19,13 @@ Chromium support-library boundary interfaces required by that API. The code is
 based on AndroidX WebKit (Apache License 2.0) and Chromium support-library
 boundary sources (BSD-style license). Unrelated AndroidX APIs and transitive
 runtime libraries are intentionally not packaged.
+
+## Tailnet native component
+
+When the optional Tailnet browsing component is built, it packages a pinned
+source revision of `tailscale/libtailscale` under the BSD 3-Clause License.
+The exact revision, Go toolchain, Android NDK, ABI list, and SHA-256 output
+hashes are recorded by `tools/build_libtailscale_android.ps1` during release
+assembly. Android builds use Go's shared-library mode because Go does not
+support its archive mode for Android targets. This component is not yet
+included in the standard APK.

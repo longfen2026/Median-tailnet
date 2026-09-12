@@ -21,7 +21,7 @@ if rg -n 'median-debug|STOREPASS:-android|versionName=.1\.3\.|Median Browser 1\.
   exit 1
 fi
 rg -q "medianVersionCode = 92" app/build.gradle
-rg -q "medianVersionName = '2.3.0'" app/build.gradle
+rg -q "medianVersionName = '2.3.0-tailnet'" app/build.gradle
 rg -Fq 'VERSION_CODE="${VERSION_CODE:-92}"' tools/build_500kb_apk.sh
 rg -Fq 'export VERSION_CODE="${VERSION_CODE:-92}"' tools/build_signed_update.sh
 rg -q "applicationId 'com.xinyv.median.compat'" app/build.gradle

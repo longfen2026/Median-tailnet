@@ -23,7 +23,7 @@ jobs:
           gradle-version: '8.13'
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Static security checks
-        run: ./tools/static_checks.sh
+        run: bash ./tools/static_checks.sh
       - name: Lint, tests and build
         run: ./gradlew --no-daemon clean lintDebug testDebugUnitTest assembleDebug bundleRelease
       - name: Checksums

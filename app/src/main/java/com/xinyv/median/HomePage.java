@@ -78,6 +78,12 @@ final class HomePage {
     static String html(String selectedEngine, List<BrowserDataStore.Bookmark> bookmarks, boolean dark,
                        String trustToken, HomePageConfig options, List<SearchEngineStore.Engine> customEngines,
                        List<Shortcut> homeShortcuts) {
+        return html(selectedEngine, bookmarks, dark, trustToken, options, customEngines, homeShortcuts, false);
+    }
+
+    static String html(String selectedEngine, List<BrowserDataStore.Bookmark> bookmarks, boolean dark,
+                       String trustToken, HomePageConfig options, List<SearchEngineStore.Engine> customEngines,
+                       List<Shortcut> homeShortcuts, boolean tailnetConnected) {
         if (options == null) options = HomePageConfig.defaults();
         String engine = selectedEngineId(selectedEngine, customEngines);
         boolean wallpaper = options.hasWallpaper;
@@ -153,8 +159,11 @@ final class HomePage {
             page.append("<div class='brand'><img class='logo' src='/home-logo?v=").append(options.logoVersion).append("' alt=''></div>");
         else if (!"none".equals(options.logoMode))
             page.append("<div class='brand' aria-label='").append(escape(options.title)).append("'>")
-                    .append(LogoMarkup.renderPreset(options.logoStyle, options.title, options.logoCode,
-                            options.logoGradientAngle)).append("</div>");
+                .append(tailnetConnected && "median".equals(options.logoStyle) &&
+                    HomePageConfig.DEFAULT_TITLE.equals(options.title)
+                    ? "med<span style='color:#D6A23A'>i</span>an-tailnet"
+                    : LogoMarkup.renderPreset(options.logoStyle, options.title, options.logoCode,
+                        options.logoGradientAngle)).append("</div>");
         if (options.subtitle.length() > 0) page.append("<div class='subtitle'>").append(escape(options.subtitle)).append("</div>");
         else page.append("<div class='subtitle'></div>");
         if (options.showSearch) {

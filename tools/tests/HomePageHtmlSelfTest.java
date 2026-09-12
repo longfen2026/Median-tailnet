@@ -18,6 +18,12 @@ public final class HomePageHtmlSelfTest {
         require(!basic.contains("home-wallpaper?v="), "default page requested wallpaper");
         require(basic.contains("median://folders"), "logo folder-manager long press missing");
 
+        String tailnet = HomePage.html("google", Collections.<BrowserDataStore.Bookmark>emptyList(), false,
+                "safe-token", HomePageConfig.defaults(), Collections.<SearchEngineStore.Engine>emptyList(),
+                Collections.<HomePage.Shortcut>emptyList(), true);
+        require(tailnet.contains("an-tailnet</div>"), "connected Tailnet logo missing");
+        require(!basic.contains("an-tailnet</div>"), "disconnected homepage changed its logo");
+
         String folderPage = HomePage.html("google", Collections.<BrowserDataStore.Bookmark>emptyList(), false,
                 "token", HomePageConfig.defaults(), Collections.<SearchEngineStore.Engine>emptyList(),
                 Arrays.asList(new HomePage.Shortcut(true, "f-work", "工作", "", 2L),

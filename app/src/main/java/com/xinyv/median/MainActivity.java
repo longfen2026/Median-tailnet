@@ -170,6 +170,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
     private static final int MUTED = Color.rgb(95, 99, 104);
     private static final int SURFACE = Color.rgb(241, 243, 244);
     private static final int BLUE = Color.rgb(26, 115, 232);
+    private static final int TAILNET_GREEN = Color.rgb(52, 168, 83);
 
     private FrameLayout rootFrame;
     private LinearLayout browserChrome;
@@ -185,6 +186,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
     private BrowserIconView tabButton;
     private BrowserIconView shieldButton;
     private BrowserIconView refreshButton;
+    private BrowserIconView menuButton;
     private ValueCallback<Uri[]> fileChooserCallback;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private ExecutorService startupExecutor;
@@ -413,7 +415,10 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         scriptExecutor = BackgroundExecutor.create(1, 64, "median-work", false);
         scriptNetworkExecutor = BackgroundExecutor.create(3, 96, "median-network", false);
         tailnetManager = new TailnetManager(this, new TailnetManager.Listener() {
-            @Override public void onStateChanged() {}
+            @Override public void onStateChanged() {
+                updateTailnetConnectionUi();
+                if (isTailnetSettingsVisible()) showTailnetSettings();
+            }
         });
         tailnetManager.configure(prefs.getBoolean(PREF_TAILNET_ENABLED, false),
             prefs.getStringSet(PREF_TAILNET_DOMAINS, Collections.<String>emptySet()));
@@ -774,8 +779,8 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         forwardButton = iconButton(BrowserIconView.FORWARD, "前进");
         BrowserIconView home = iconButton(BrowserIconView.HOME, "主页");
         tabButton = iconButton(BrowserIconView.TABS, "标签页");
-        BrowserIconView menu = iconButton(BrowserIconView.MENU, "菜单");
-        BrowserIconView[] bottomButtons = new BrowserIconView[] { backButton, forwardButton, home, tabButton, menu };
+        menuButton = iconButton(BrowserIconView.MENU, "菜单");
+        BrowserIconView[] bottomButtons = new BrowserIconView[] { backButton, forwardButton, home, tabButton, menuButton };
         for (BrowserIconView button : bottomButtons) bottomBar.addView(button, new LinearLayout.LayoutParams(0, dp(52), 1f));
         browserChrome.addView(bottomBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
 
@@ -849,7 +854,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         tabButton.setOnLongClickListener(new View.OnLongClickListener() {
             @Override public boolean onLongClick(View v) { newTab(); return true; }
         });
-        menu.setOnClickListener(new View.OnClickListener() {
+        menuButton.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { showMainMenu(); }
         });
         applyChromeTheme();
@@ -2751,7 +2756,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         if (!alreadyRendered) {
             if (!renderKey.equals(cachedHomeKey)) {
                 cachedHomeHtml = HomePage.html(searchEngine, bookmarks, nightMode, HOME_TOKEN, config,
-                        searchEngines.customEngines(), shortcuts);
+                    searchEngines.customEngines(), shortcuts, isTailnetConnected());
                 cachedHomeKey = renderKey;
             }
             renderedHomeKeys.put(webView, renderKey);
@@ -2783,6 +2788,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
     private String homeRenderKey(HomePageConfig value, List<HomePage.Shortcut> shortcuts) {
         StringBuilder key = new StringBuilder(512);
         key.append(searchEngine).append('|').append(searchEngines.signature()).append('|').append(nightMode).append('|')
+            .append(isTailnetConnected()).append('|')
                 .append(value.title).append('|').append(value.subtitle).append('|')
                 .append(value.logoStyle).append('|').append(value.logoCode).append('|')
                 .append(value.logoMode).append('|').append(value.logoLetterSpacing).append('|')
@@ -3180,6 +3186,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                 "标签页工具",
                 "下载中心",
                 "新建独立隐私窗口",
+                "Tailnet 分流\n" + tailnetStatusLabel(),
                 bookmarked ? "管理当前收藏" : "收藏当前页面",
                 "当前网站设置",
                 "桌面网站\n为当前页面切换桌面布局",
@@ -3191,22 +3198,23 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         };
         int[] icons = new int[] {
                 BrowserIconView.PLUS, BrowserIconView.TABS, BrowserIconView.DOWNLOAD, BrowserIconView.SHIELD,
-                BrowserIconView.BOOKMARK, BrowserIconView.SHIELD, BrowserIconView.DESKTOP,
+            BrowserIconView.SHIELD, BrowserIconView.BOOKMARK, BrowserIconView.SHIELD, BrowserIconView.DESKTOP,
                 BrowserIconView.APPEARANCE, BrowserIconView.MENU, BrowserIconView.HISTORY,
                 BrowserIconView.SHIELD, BrowserIconView.SETTINGS
         };
         int[] kinds = new int[] {
                 SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_ACTION,
-                SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE,
+            SHEET_ROW_NAVIGATE, SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE,
                 desktopMode ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 nightMode ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE
         };
         String[] sections = new String[items.length];
         sections[0] = "浏览";
-        sections[4] = "当前页面";
-        sections[9] = "资料与工具";
-        sections[11] = "浏览器";
+        sections[4] = "网络";
+        sections[5] = "当前页面";
+        sections[10] = "资料与工具";
+        sections[12] = "浏览器";
         showActionSheet("Median", subtitle, items, icons, kinds, sections, null, new SheetHandler() {
             @Override public void onItem(int which) {
                 switch (which) {
@@ -3214,24 +3222,25 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                     case 1: showTabTools(); break;
                     case 2: showDownloadCenter(); break;
                     case 3: openPrivateWindow(); break;
-                    case 4: toggleCurrentBookmark(); break;
-                    case 5: showSiteSettings(); break;
-                    case 6:
+                    case 4: showTailnetSettings(); break;
+                    case 5: toggleCurrentBookmark(); break;
+                    case 6: showSiteSettings(); break;
+                    case 7:
                         desktopMode = !desktopMode;
                         prefs.edit().putBoolean("desktop", desktopMode).apply();
                         applyDesktopMode();
                         webView.reload();
                         break;
-                    case 7:
+                    case 8:
                         nightMode = !nightMode;
                         prefs.edit().putBoolean("night_mode", nightMode).apply();
                         applyDarkMode();
                         if (isHomeUrl(currentPageUrl)) showHome();
                         break;
-                    case 8: showPageTools(); break;
-                    case 9: showBrowserLibrary(); break;
-                    case 10: showPrivacyTools(); break;
-                    case 11: showBrowserSettings(); break;
+                    case 9: showPageTools(); break;
+                    case 10: showBrowserLibrary(); break;
+                    case 11: showPrivacyTools(); break;
+                    case 12: showBrowserSettings(); break;
                     default: break;
                 }
             }
@@ -4106,7 +4115,6 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                 "HTTPS 优先\n自动把可升级的地址优先使用安全连接",
                 "跟踪参数清理\n打开网页前移除常见的跨站跟踪参数",
                 "第三方 Cookie\n默认阻止；仍可在网站设置中单独放行",
-                "Tailnet 分流\n" + tailnetStatusLabel(),
                 "每次打开\n当前：" + homeOpenBehaviorLabel(),
                 "搜索\n当前：" + searchEngineLabel() + " · 默认与自定义规则",
                 "主页与外观\n布局、Logo、搜索框、背景与快捷网站",
@@ -4117,7 +4125,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         };
         int[] icons = new int[] {
                 BrowserIconView.SHIELD, BrowserIconView.CLEAN, BrowserIconView.COOKIE,
-            BrowserIconView.SHIELD, BrowserIconView.STARTUP, BrowserIconView.SEARCH, BrowserIconView.APPEARANCE,
+            BrowserIconView.STARTUP, BrowserIconView.SEARCH, BrowserIconView.APPEARANCE,
                 BrowserIconView.BOOKMARK, BrowserIconView.SPEED, BrowserIconView.STORAGE, BrowserIconView.INFO
         };
         int[] kinds = new int[] {
@@ -4125,15 +4133,14 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                 cleanTrackingParameters ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 acceptThirdPartyCookies ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE,
-                SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE
+                SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE
         };
         String[] sections = new String[items.length];
         sections[0] = "隐私与安全";
-        sections[3] = "网络";
-        sections[4] = "启动与搜索";
-        sections[6] = "界面";
-        sections[8] = "资源与数据";
-        sections[10] = "信息";
+            sections[3] = "启动与搜索";
+            sections[5] = "界面";
+            sections[7] = "资源与数据";
+            sections[9] = "信息";
         showActionSheet("浏览器设置", "轻触开关立即保存 · 返回键只关闭设置", items, icons,
                 kinds, sections, null, new SheetHandler() {
             @Override public void onItem(int which) {
@@ -4151,13 +4158,12 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                             "第三方 Cookie 已默认阻止，可按网站放行");
                 } else {
                     final Runnable returnAction = MainActivity.this;
-                    if (which == 3) showTailnetSettings();
-                    else if (which == 4) showHomeOpenBehaviorChoice(false);
-                    else if (which == 5) showSearchSettings();
-                    else if (which == 6) showHomeCustomization(returnAction);
-                    else if (which == 7) openBookmarkManager(returnAction);
-                    else if (which == 8) showPerformancePanel(returnAction);
-                    else if (which == 9) showStoragePanel(returnAction);
+                    if (which == 3) showHomeOpenBehaviorChoice(false);
+                    else if (which == 4) showSearchSettings();
+                    else if (which == 5) showHomeCustomization(returnAction);
+                    else if (which == 6) openBookmarkManager(returnAction);
+                    else if (which == 7) showPerformancePanel(returnAction);
+                    else if (which == 8) showStoragePanel(returnAction);
                     else showAbout(returnAction);
                 }
             }
@@ -4170,11 +4176,19 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         switch (tailnetManager.state()) {
             case NEEDS_LOGIN: return "等待登录授权";
             case RUNNING: return "已连接 · Tailnet 域走隧道，其他域直连";
-            case ERROR: return "连接错误";
+            case ERROR:
+                String error = tailnetManager.errorMessage();
+                return error == null || error.length() == 0 ? "连接错误" : "连接错误 · " + error;
             case CONNECTING: return "正在连接";
             case STARTING: return "正在启动";
             default: return "关闭";
         }
+    }
+
+    private boolean isTailnetSettingsVisible() {
+        if (!activeOverlaySheet || activeOverlayPanel == null) return false;
+        View heading = activeOverlayPanel.findViewWithTag(SHEET_TAG_PRIMARY);
+        return heading instanceof TextView && "Tailnet 分流".contentEquals(((TextView) heading).getText());
     }
 
     private void showTailnetSettings() {
@@ -4192,7 +4206,9 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         };
         showActionSheet("Tailnet 分流", "匹配域名通过 Tailnet，其余连接使用普通网络",
                 items, new int[] { BrowserIconView.SHIELD, BrowserIconView.SHARE, BrowserIconView.SETTINGS },
-                kinds, null, this, new SheetHandler() {
+                kinds, null, new Runnable() {
+                    @Override public void run() { showMainMenu(); }
+                }, new SheetHandler() {
                     @Override public void onItem(int which) {
                         if (which == 0) {
                             boolean next = !enabled;
@@ -8011,6 +8027,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         addressBar.setHintTextColor(hint);
         tintIconTree(topBar, foreground);
         tintIconTree(bottomBar, foreground);
+        updateTailnetMenuColor();
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= 30) {
             window.setStatusBarColor(Color.TRANSPARENT);
@@ -8035,6 +8052,25 @@ public final class MainActivity extends ComponentActivity implements Runnable {
             }
             window.getDecorView().setSystemUiVisibility(flags);
         }
+    }
+
+    private boolean isTailnetConnected() {
+        return tailnetManager != null && tailnetManager.state() == TailnetManager.State.RUNNING;
+    }
+
+    private void updateTailnetConnectionUi() {
+        updateTailnetMenuColor();
+        if (webView != null && isHomeUrl(currentPageUrl)) {
+            renderedHomeKeys.remove(webView);
+            cachedHomeKey = "";
+            showHome();
+        }
+    }
+
+    private void updateTailnetMenuColor() {
+        if (menuButton == null) return;
+        int foreground = nightMode ? Color.rgb(232, 234, 237) : TEXT;
+        menuButton.setTintColor(isTailnetConnected() ? TAILNET_GREEN : foreground);
     }
 
     private void refreshActiveSheetTheme() {

@@ -1,0 +1,5 @@
+<resources>
+    <style name="AppThemeDark" parent="@style/MedianAppThemeDarkBase">
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

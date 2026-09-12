@@ -3,7 +3,6 @@ package com.xinyv.median;
 import static com.xinyv.median.ByteFormat.humanBytes;
 
 import android.Manifest;
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.app.PictureInPictureParams;
@@ -74,6 +73,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
 import androidx.webkit.ScriptHandler;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewCompat;
@@ -116,7 +117,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.security.MessageDigest;
 import java.util.Iterator;
 
-public final class MainActivity extends Activity implements Runnable {
+public final class MainActivity extends ComponentActivity implements Runnable {
     private static final int FILE_CHOOSER_REQUEST = 401;
     private static final int BACKUP_EXPORT_REQUEST = 402;
     private static final int BACKUP_IMPORT_REQUEST = 403;
@@ -234,7 +235,6 @@ public final class MainActivity extends Activity implements Runnable {
     private boolean activeOverlaySheet;
     private boolean overlayDismissInProgress;
     private Runnable activeOverlayBackAction;
-    private Object predictiveBackCallback;
     private Runnable homeCustomizationBackAction;
     private Runnable bookmarkFolderRootBackAction;
     private int pendingHomeImageReturnSection = HOME_SECTION_MAIN;
@@ -413,7 +413,7 @@ public final class MainActivity extends Activity implements Runnable {
         BrowserTab first = new BrowserTab();
         tabs.add(first);
         buildUi();
-        registerPredictiveBack();
+        registerBackCallback();
         // Creating the first WebView directly is the most compatible startup path. Some vendor
         // providers advertise asynchronous startup but lose its completion callback, which used
         // to leave the browser apparently unable to open a page until a three-second fallback.
@@ -1221,34 +1221,12 @@ public final class MainActivity extends Activity implements Runnable {
         action.run();
     }
 
-    private void registerPredictiveBack() {
-        if (Build.VERSION.SDK_INT < 33 || predictiveBackCallback != null) return;
-        registerPredictiveBackApi33();
-    }
-
-    @android.annotation.TargetApi(33)
-    private void registerPredictiveBackApi33() {
-        final android.window.OnBackInvokedCallback callback = new android.window.OnBackInvokedCallback() {
-            @Override public void onBackInvoked() { handleBrowserBack(); }
-        };
-        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
-        predictiveBackCallback = callback;
-    }
-
-    private void unregisterPredictiveBack() {
-        if (Build.VERSION.SDK_INT < 33 || predictiveBackCallback == null) return;
-        unregisterPredictiveBackApi33();
-    }
-
-    @android.annotation.TargetApi(33)
-    private void unregisterPredictiveBackApi33() {
-        try {
-            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(
-                    (android.window.OnBackInvokedCallback) predictiveBackCallback);
-        } catch (RuntimeException ignored) {
-        }
-        predictiveBackCallback = null;
+    private void registerBackCallback() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() {
+                handleBrowserBack();
+            }
+        });
     }
 
     /** Installs the cold-start payload already assembled on the background startup thread. */
@@ -8851,11 +8829,6 @@ public final class MainActivity extends Activity implements Runnable {
         }
     }
 
-    @Override
-    public void onBackPressed() {
-        handleBrowserBack();
-    }
-
     private void handleBrowserBack() {
         if (overlayDismissInProgress) {
             return;
@@ -8986,7 +8959,6 @@ public final class MainActivity extends Activity implements Runnable {
     protected void onDestroy() {
         activityResumed = false;
         activityDestroyed = true;
-        unregisterPredictiveBack();
         persistSession();
         if (pendingPermissionRequest != null) pendingPermissionRequest.deny();
         if (pendingGeolocationCallback != null) pendingGeolocationCallback.invoke(pendingGeolocationOrigin, false, false);

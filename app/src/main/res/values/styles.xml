@@ -1,7 +1,6 @@
 <resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="MedianAppThemeBase" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:isLightTheme">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#1A73E8</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
@@ -11,9 +10,10 @@
         <item name="android:windowDisablePreview">false</item>
     </style>
 
-    <style name="AppThemeDark" parent="android:style/Theme.Material.NoActionBar">
+    <style name="AppTheme" parent="@style/MedianAppThemeBase" />
+
+    <style name="MedianAppThemeDarkBase" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:isLightTheme">false</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#6E9DD8</item>
         <item name="android:colorBackground">#1B1D20</item>
@@ -22,15 +22,15 @@
         <item name="android:navigationBarColor">#1B1D20</item>
         <item name="android:statusBarColor">#1B1D20</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowDisablePreview">false</item>
         <item name="android:alertDialogTheme">@style/MedianAlertDialogDark</item>
     </style>
 
+    <style name="AppThemeDark" parent="@style/MedianAppThemeDarkBase" />
+
     <!-- Runtime overlays: WebView reads isLightTheme when choosing prefers-color-scheme. -->
-    <style name="AppThemeSignalLight">
-        <item name="android:isLightTheme">true</item>
+    <style name="MedianAppThemeSignalLightBase">
         <item name="android:colorAccent">#1A73E8</item>
         <item name="android:colorBackground">#FFFFFF</item>
         <item name="android:textColorPrimary">#202124</item>
@@ -38,8 +38,9 @@
         <item name="android:alertDialogTheme">@style/MedianAlertDialogLight</item>
     </style>
 
-    <style name="AppThemeSignalDark">
-        <item name="android:isLightTheme">false</item>
+    <style name="AppThemeSignalLight" parent="@style/MedianAppThemeSignalLightBase" />
+
+    <style name="MedianAppThemeSignalDarkBase">
         <item name="android:colorAccent">#6E9DD8</item>
         <item name="android:colorBackground">#1B1D20</item>
         <item name="android:textColorPrimary">#E8EAED</item>
@@ -47,6 +48,8 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:alertDialogTheme">@style/MedianAlertDialogDark</item>
     </style>
+
+    <style name="AppThemeSignalDark" parent="@style/MedianAppThemeSignalDarkBase" />
 
     <style name="MedianAlertDialogLight" parent="android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:colorAccent">#1A73E8</item>

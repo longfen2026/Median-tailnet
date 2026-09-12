@@ -1,6 +1,5 @@
 package com.xinyv.median;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
@@ -36,6 +35,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
+
 import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
@@ -53,7 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Isolated-process private browser for Android 9+. Its WebView profile never shares the normal
  * cookie/database directory and is erased when the task closes.
  */
-public final class PrivateActivity extends Activity {
+public final class PrivateActivity extends ComponentActivity {
     private static final int FILE_CHOOSER_REQUEST = 501;
     private static final String HOME = "https://median-private.invalid/";
     private static final String HOME_TOKEN = UrlCleaner.randomToken();
@@ -85,7 +87,6 @@ public final class PrivateActivity extends Activity {
     private boolean privateProfileReady;
     private String pendingInput;
     private String pendingEngine = "google";
-    private Object predictiveBackCallback;
     private ValueCallback<Uri[]> fileChooserCallback;
 
     @Override protected void onCreate(Bundle state) {
@@ -103,11 +104,12 @@ public final class PrivateActivity extends Activity {
         startupExecutor = BackgroundExecutor.create(2, 4, "median-private-startup", false);
         beginFilterRuleLoad();
         buildUi();
-        registerPredictiveBack();
+        registerBackCallback();
         initializePrivateWebView();
     }
 
     private static synchronized boolean ensurePrivateDataDirectory() {
+        if (android.os.Build.VERSION.SDK_INT < 28) return false;
         if (privateDataDirectoryConfigured) return true;
         try {
             WebView.setDataDirectorySuffix("median_private");
@@ -633,32 +635,12 @@ public final class PrivateActivity extends Activity {
         else finishAndRemoveTask();
     }
 
-    private void registerPredictiveBack() {
-        if (android.os.Build.VERSION.SDK_INT < 33 || predictiveBackCallback != null) return;
-        registerPredictiveBackApi33();
-    }
-
-    @android.annotation.TargetApi(33)
-    private void registerPredictiveBackApi33() {
-        final android.window.OnBackInvokedCallback callback = new android.window.OnBackInvokedCallback() {
-            @Override public void onBackInvoked() { handlePrivateBack(); }
-        };
-        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
-        predictiveBackCallback = callback;
-    }
-
-    private void unregisterPredictiveBack() {
-        if (android.os.Build.VERSION.SDK_INT < 33 || predictiveBackCallback == null) return;
-        try {
-            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(
-                    (android.window.OnBackInvokedCallback) predictiveBackCallback);
-        } catch (RuntimeException ignored) {}
-        predictiveBackCallback = null;
-    }
-
-    @Override public void onBackPressed() {
-        handlePrivateBack();
+    private void registerBackCallback() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() {
+                handlePrivateBack();
+            }
+        });
     }
 
     @Override protected void onPause() {
@@ -682,7 +664,6 @@ public final class PrivateActivity extends Activity {
     @Override protected void onDestroy() {
         activityResumed = false;
         activityDestroyed = true;
-        unregisterPredictiveBack();
         handler.removeCallbacksAndMessages(null);
         if (startupExecutor != null) startupExecutor.shutdownNow();
         startupExecutor = null;

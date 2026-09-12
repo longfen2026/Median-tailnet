@@ -1,0 +1,18 @@
+<resources>
+    <style name="AppTheme" parent="@style/MedianAppThemeBase">
+        <item name="android:isLightTheme">true</item>
+    </style>
+
+    <style name="AppThemeDark" parent="@style/MedianAppThemeDarkBase">
+        <item name="android:isLightTheme">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="AppThemeSignalLight" parent="@style/MedianAppThemeSignalLightBase">
+        <item name="android:isLightTheme">true</item>
+    </style>
+
+    <style name="AppThemeSignalDark" parent="@style/MedianAppThemeSignalDarkBase">
+        <item name="android:isLightTheme">false</item>
+    </style>
+</resources>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.1-tailnet
+
+- Tailnet 与 Median 浏览器共用主页，仅为匹配的 `*.ts.net` 或自定义域名启用隧道分流，其他请求继续使用普通网络连接。
+- 新增独立的 Tailnet 设置入口、连接状态、自定义域规则，以及连接后的绿色菜单按钮和 `median-tailnet` 主页标识。
+- 修复 Tailnet 状态轮询反复刷新主页和重建设置面板导致的画面晃动。
+- versionCode 升至 93、versionName 升至 `2.3.1-tailnet`。
+
 ## 2.3.0
 
 - 重构 UserScript 启动可靠性：document-start 注册和页面提交补偿共享幂等标记，修复部分厂商 WebView 接受注册却不执行、以及脚本更新后看似突然失效的问题。

@@ -12,7 +12,7 @@
 <p align="center">
 
 ![Android](https://img.shields.io/badge/Platform-Android-green)
-![Version](https://img.shields.io/badge/Version-2.3.0-blue)
+![Version](https://img.shields.io/badge/Version-2.3.1--tailnet-blue)
 ![License](https://img.shields.io/badge/License-Open%20Source-orange)
 
 </p>

@@ -3,8 +3,8 @@ plugins {
 }
 
 
-final int medianVersionCode = 92
-final String medianVersionName = '2.3.0-tailnet'
+final int medianVersionCode = 93
+final String medianVersionName = '2.3.1-tailnet'
 
 android {
     namespace 'com.xinyv.median'

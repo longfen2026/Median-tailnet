@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.os.Process;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -55,9 +56,14 @@ public final class TailnetActivity extends Activity {
     private TailnetNative.ConnectAdapter connectAdapter;
     private TailnetProxyController proxyController;
     private WebView webView;
+    private LinearLayout topBar;
     private EditText addressBar;
     private ProgressBar pageProgress;
     private FrameLayout webContainer;
+    private LinearLayout entryContainer;
+    private LinearLayout bookmarkGrid;
+    private TextView bookmarkHint;
+    private TailnetBookmarkStore bookmarkStore;
     private ProgressBar statusProgress;
     private AlertDialog authorizationDialog;
     private ConnectivityManager connectivityManager;
@@ -375,11 +381,12 @@ public final class TailnetActivity extends Activity {
             authorizationDialog.dismiss();
             authorizationDialog = null;
         }
-        if (webView == null) createWebView();
+        showTailnetEntry();
     }
 
     private void createWebView() {
-        buildBrowserUi();
+        if (webView != null) return;
+        if (webContainer == null) buildBrowserUi();
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         WebViewPolicy.applySecureDefaults(settings, WebSettings.LOAD_DEFAULT);
@@ -421,6 +428,8 @@ public final class TailnetActivity extends Activity {
         });
         webContainer.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        webView.bringToFront();
+        topBar.setVisibility(View.VISIBLE);
     }
 
     private void buildBrowserUi() {
@@ -428,7 +437,7 @@ public final class TailnetActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(WHITE);
 
-        LinearLayout topBar = new LinearLayout(this);
+        topBar = new LinearLayout(this);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         topBar.setPadding(dp(10), dp(7), dp(10), dp(7));
         topBar.setBackgroundColor(WHITE);
@@ -467,24 +476,12 @@ public final class TailnetActivity extends Activity {
 
         webContainer = new FrameLayout(this);
         webContainer.setBackgroundColor(WHITE);
-        LinearLayout entry = new LinearLayout(this);
-        entry.setGravity(Gravity.CENTER);
-        entry.setOrientation(LinearLayout.VERTICAL);
-        entry.setPadding(dp(28), dp(28), dp(28), dp(28));
-        TextView title = new TextView(this);
-        title.setText("Tailnet 浏览");
-        title.setTextColor(TEXT);
-        title.setTextSize(24f);
-        title.setGravity(Gravity.CENTER);
-        entry.addView(title);
-        TextView hint = new TextView(this);
-        hint.setText("在地址栏输入 Tailnet 设备或服务地址");
-        hint.setTextColor(Color.rgb(95, 99, 104));
-        hint.setTextSize(14f);
-        hint.setGravity(Gravity.CENTER);
-        hint.setPadding(0, dp(10), 0, 0);
-        entry.addView(hint);
-        webContainer.addView(entry, new FrameLayout.LayoutParams(
+        entryContainer = new LinearLayout(this);
+        entryContainer.setGravity(Gravity.CENTER_HORIZONTAL);
+        entryContainer.setOrientation(LinearLayout.VERTICAL);
+        entryContainer.setPadding(dp(24), 0, dp(24), 0);
+        buildEntryContent();
+        webContainer.addView(entryContainer, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(webContainer, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -508,6 +505,7 @@ public final class TailnetActivity extends Activity {
         root.addView(bottomBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
         setContentView(root);
+        topBar.setVisibility(View.GONE);
 
         addressBar.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override public boolean onEditorAction(TextView view, int actionId, KeyEvent event) {
@@ -529,12 +527,242 @@ public final class TailnetActivity extends Activity {
         close.setOnClickListener(view -> finish());
     }
 
+    /** Entry page: centered logo, address bar, and bookmark tiles. */
+    private void buildEntryContent() {
+        entryContainer.removeAllViews();
+
+        // Vertical spacer pushes content toward the optical center of the page.
+        View topSpacer = new View(this);
+        entryContainer.addView(topSpacer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 0.32f));
+
+        TailnetLogoView logo = new TailnetLogoView(this);
+        logo.setContentDescription("Tailnet");
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        logoParams.gravity = Gravity.CENTER_HORIZONTAL;
+        entryContainer.addView(logo, logoParams);
+
+        // Centered address bar styled like the top pill.
+        LinearLayout entryPill = new LinearLayout(this);
+        entryPill.setGravity(Gravity.CENTER_VERTICAL);
+        entryPill.setPadding(dp(6), 0, dp(6), 0);
+        entryPill.setBackground(roundRect(SURFACE, 24));
+        LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+        pillParams.gravity = Gravity.CENTER_HORIZONTAL;
+        pillParams.setMargins(0, dp(18), 0, 0);
+        entryContainer.addView(entryPill, pillParams);
+
+        BrowserIconView searchIcon = iconButton(BrowserIconView.SEARCH, "搜索 Tailnet");
+        entryPill.addView(searchIcon, new LinearLayout.LayoutParams(dp(42), dp(48)));
+
+        final EditText entryAddress = new EditText(this);
+        entryAddress.setSingleLine(true);
+        entryAddress.setTextSize(15f);
+        entryAddress.setTextColor(TEXT);
+        entryAddress.setHintTextColor(Color.rgb(128, 134, 139));
+        entryAddress.setHint("输入 Tailnet 地址");
+        entryAddress.setSelectAllOnFocus(true);
+        entryAddress.setImeOptions(EditorInfo.IME_ACTION_GO);
+        entryAddress.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        entryAddress.setBackgroundColor(Color.TRANSPARENT);
+        entryPill.addView(entryAddress, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        entryAddress.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override public boolean onEditorAction(TextView view, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_GO
+                        || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+                    loadTailnetAddress(entryAddress.getText().toString());
+                    entryAddress.clearFocus();
+                    hideKeyboard();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // Bookmark section header with add button.
+        LinearLayout bookmarkHeader = new LinearLayout(this);
+        bookmarkHeader.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        headerParams.setMargins(0, dp(26), 0, dp(6));
+        entryContainer.addView(bookmarkHeader, headerParams);
+
+        TextView bookmarkTitle = new TextView(this);
+        bookmarkTitle.setText("常用书签");
+        bookmarkTitle.setTextColor(TEXT);
+        bookmarkTitle.setTextSize(14f);
+        bookmarkTitle.setTypeface(android.graphics.Typeface.create("sans-serif-medium",
+                android.graphics.Typeface.NORMAL));
+        bookmarkHeader.addView(bookmarkTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        BrowserIconView addBookmark = iconButton(BrowserIconView.PLUS, "添加常用书签");
+        addBookmark.setTintColor(BLUE);
+        bookmarkHeader.addView(addBookmark, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        addBookmark.setOnClickListener(view -> showBookmarkEditor(null, entryAddress.getText().toString()));
+
+        bookmarkGrid = new LinearLayout(this);
+        bookmarkGrid.setOrientation(LinearLayout.VERTICAL);
+        entryContainer.addView(bookmarkGrid, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        bookmarkHint = new TextView(this);
+        bookmarkHint.setText("暂无常用书签，点 + 添加");
+        bookmarkHint.setTextColor(Color.rgb(95, 99, 104));
+        bookmarkHint.setTextSize(13f);
+        bookmarkHint.setGravity(Gravity.CENTER);
+        bookmarkHint.setPadding(0, dp(10), 0, dp(10));
+        entryContainer.addView(bookmarkHint, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Bottom spacer keeps the block visually centered.
+        View bottomSpacer = new View(this);
+        entryContainer.addView(bottomSpacer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 0.68f));
+
+        renderBookmarks();
+    }
+
+    private void renderBookmarks() {
+        if (bookmarkGrid == null) return;
+        if (bookmarkStore == null) bookmarkStore = new TailnetBookmarkStore(this);
+        List<TailnetBookmarkStore.Bookmark> bookmarks = bookmarkStore.list();
+        bookmarkGrid.removeAllViews();
+        bookmarkHint.setVisibility(bookmarks.isEmpty() ? View.VISIBLE : View.GONE);
+
+        LinearLayout row = null;
+        for (int index = 0; index < bookmarks.size(); index++) {
+            if (index % 4 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                rowParams.setMargins(0, 0, 0, dp(8));
+                bookmarkGrid.addView(row, rowParams);
+            }
+            row.addView(bookmarkTile(bookmarks.get(index)), new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+    }
+
+    private View bookmarkTile(final TailnetBookmarkStore.Bookmark bookmark) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER_HORIZONTAL);
+        tile.setPadding(dp(4), dp(10), dp(4), dp(10));
+        tile.setClickable(true);
+        tile.setFocusable(true);
+        tile.setBackground(rippleBackground());
+
+        View badge = new View(this);
+        badge.setBackground(roundRect(SURFACE, 14));
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(dp(46), dp(46));
+        tile.addView(badge, badgeParams);
+
+        TextView label = new TextView(this);
+        label.setText(bookmark.title);
+        label.setTextColor(TEXT);
+        label.setTextSize(12f);
+        label.setGravity(Gravity.CENTER);
+        label.setMaxLines(1);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        labelParams.setMargins(0, dp(6), 0, 0);
+        tile.addView(label, labelParams);
+
+        tile.setOnClickListener(view -> loadTailnetAddress(bookmark.url));
+        tile.setOnLongClickListener(view -> {
+            showBookmarkActions(bookmark);
+            return true;
+        });
+        return tile;
+    }
+
+    private void showBookmarkActions(final TailnetBookmarkStore.Bookmark bookmark) {
+        new AlertDialog.Builder(this)
+                .setTitle(bookmark.title)
+                .setItems(new CharSequence[] { "编辑书签", "删除书签" }, (dialog, which) -> {
+                    if (which == 0) showBookmarkEditor(bookmark, bookmark.url);
+                    else {
+                        bookmarkStore.remove(bookmark.url);
+                        renderBookmarks();
+                        Toast.makeText(this, "已删除书签", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showBookmarkEditor(final TailnetBookmarkStore.Bookmark existing, String initialUrl) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(4), dp(4), dp(4), dp(0));
+
+        final EditText titleInput = new EditText(this);
+        titleInput.setHint("名称");
+        titleInput.setSingleLine(true);
+        if (existing != null) titleInput.setText(bookmarkStore.list().isEmpty()
+                ? "" : existing.title);
+        form.addView(titleInput, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final EditText urlInput = new EditText(this);
+        urlInput.setHint("Tailnet 地址");
+        urlInput.setSingleLine(true);
+        urlInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        urlInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        urlInput.setText(initialUrl == null ? "" : initialUrl);
+        form.addView(urlInput, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        new AlertDialog.Builder(this)
+                .setTitle(existing == null ? "添加常用书签" : "编辑常用书签")
+                .setView(form)
+                .setPositiveButton(existing == null ? "添加" : "保存", (dialog, which) -> {
+                    String title = titleInput.getText().toString().trim();
+                    String url = urlInput.getText().toString().trim();
+                    if (url.length() == 0) {
+                        Toast.makeText(this, "请输入 Tailnet 地址", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String normalized = OmniboxInput.isExplicitHttpUrl(url)
+                            ? url : OmniboxInput.withDefaultHttpsScheme(url);
+                    try {
+                        normalized = NetworkSecurity.parseHttpUrl(normalized).toString();
+                    } catch (Exception invalid) {
+                        Toast.makeText(this, "请输入有效的 HTTP(S) 地址", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (existing == null) {
+                        if (bookmarkStore.add(title, normalized) == null)
+                            Toast.makeText(this, "该地址已在书签中", Toast.LENGTH_SHORT).show();
+                    } else if (!bookmarkStore.update(existing.url, title, normalized)) {
+                        Toast.makeText(this, "保存书签失败", Toast.LENGTH_SHORT).show();
+                    }
+                    renderBookmarks();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+        urlInput.requestFocus();
+    }
+
+    private GradientDrawable rippleBackground() {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.TRANSPARENT);
+        drawable.setCornerRadius(dp(12));
+        return drawable;
+    }
+
     private void loadTailnetAddress(String input) {
         String value = input == null ? "" : input.trim();
-        if (value.length() == 0 || webView == null) return;
+        if (value.length() == 0) return;
         String candidate = OmniboxInput.isExplicitHttpUrl(value)
                 ? value : OmniboxInput.withDefaultHttpsScheme(value);
         try {
+            createWebView();
             webView.loadUrl(NetworkSecurity.parseHttpUrl(candidate).toString());
         } catch (Exception invalid) {
             Toast.makeText(this, "请输入有效的 HTTP(S) 地址", Toast.LENGTH_SHORT).show();
@@ -547,8 +775,11 @@ public final class TailnetActivity extends Activity {
             webView.destroy();
             webView = null;
         }
-        createWebView();
-        addressBar.requestFocus();
+        if (webContainer == null) buildBrowserUi();
+        if (bookmarkStore == null) bookmarkStore = new TailnetBookmarkStore(this);
+        renderBookmarks();
+        topBar.setVisibility(View.GONE);
+        pageProgress.setVisibility(View.GONE);
     }
 
     private void hideKeyboard() {

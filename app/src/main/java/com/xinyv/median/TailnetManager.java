@@ -139,23 +139,48 @@ final class TailnetManager implements AutoCloseable {
             if (closed || !enabled || nativeNode != node) return;
         }
         if (status.isRunning()) {
+            boolean changed;
             synchronized (lock) {
-                state = State.CONNECTING;
+                State nextState = stateForStatus(state, status);
+                changed = visibleStatusChanged(state, authUrl, errorMessage, status);
+                state = nextState;
                 authUrl = null;
                 errorMessage = null;
             }
-            notifyChanged();
+            if (changed) notifyChanged();
             startRoutingProxy();
             return;
         }
+        boolean changed;
         synchronized (lock) {
             if (closed || !enabled) return;
+            State nextState = stateForStatus(state, status);
+            changed = visibleStatusChanged(state, authUrl, errorMessage, status);
             authUrl = status.authUrl;
-            state = status.needsLogin() ? State.NEEDS_LOGIN : State.CONNECTING;
+            state = nextState;
+            errorMessage = null;
         }
-        notifyChanged();
+        if (changed) notifyChanged();
         mainHandler.removeCallbacks(statusPoll);
         mainHandler.postDelayed(statusPoll, STATUS_POLL_INTERVAL_MS);
+    }
+
+    static State stateForStatus(State currentState, TailnetStatus status) {
+        if (status.isRunning())
+            return currentState == State.RUNNING ? State.RUNNING : State.CONNECTING;
+        return status.needsLogin() ? State.NEEDS_LOGIN : State.CONNECTING;
+    }
+
+    static boolean visibleStatusChanged(State currentState, String currentAuthUrl,
+            String currentErrorMessage, TailnetStatus status) {
+        State nextState = stateForStatus(currentState, status);
+        String nextAuthUrl = status.isRunning() ? null : status.authUrl;
+        return currentState != nextState || !same(currentAuthUrl, nextAuthUrl) ||
+                currentErrorMessage != null;
+    }
+
+    private static boolean same(String first, String second) {
+        return first == null ? second == null : first.equals(second);
     }
 
     private void pollStatusAsync() {

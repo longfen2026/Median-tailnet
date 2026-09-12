@@ -13,6 +13,31 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public final class TailnetStatusTest {
     @Test
+    public void equivalentPollDoesNotRequestUiRefresh() {
+    TailnetStatus status = TailnetStatus.parse(
+        "{\"BackendState\":\"NeedsLogin\","
+        + "\"AuthURL\":\"https://login.tailscale.com/a/example\"}");
+
+    assertFalse(TailnetManager.visibleStatusChanged(TailnetManager.State.NEEDS_LOGIN,
+        status.authUrl, null, status));
+    assertTrue(TailnetManager.visibleStatusChanged(TailnetManager.State.CONNECTING,
+        status.authUrl, null, status));
+    assertTrue(TailnetManager.visibleStatusChanged(TailnetManager.State.NEEDS_LOGIN,
+        null, null, status));
+    }
+
+    @Test
+    public void runningPollDoesNotDowngradeAppliedProxyState() {
+    TailnetStatus status = TailnetStatus.parse(
+        "{\"BackendState\":\"Running\",\"AuthURL\":\"\"}");
+
+    assertEquals(TailnetManager.State.RUNNING,
+        TailnetManager.stateForStatus(TailnetManager.State.RUNNING, status));
+    assertEquals(TailnetManager.State.CONNECTING,
+        TailnetManager.stateForStatus(TailnetManager.State.STARTING, status));
+    }
+
+    @Test
     public void runningStatusPermitsTailnetTransport() {
         TailnetStatus status = TailnetStatus.parse(
                 "{\"BackendState\":\"Running\",\"AuthURL\":\"\"}");

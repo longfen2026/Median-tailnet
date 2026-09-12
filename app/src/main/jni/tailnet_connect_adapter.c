@@ -4,6 +4,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <netdb.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -25,6 +26,7 @@ typedef struct adapter_connection {
 
 struct tailnet_connect_adapter {
     tailscale node;
+    tailnet_domain_policy *policy;
     int listener_fd;
     uint16_t port;
     int stopping;
@@ -35,6 +37,32 @@ struct tailnet_connect_adapter {
     pthread_cond_t workers_done;
     adapter_connection *connections;
 };
+
+static int connect_direct(const char *host, unsigned short port) {
+    struct addrinfo hints;
+    struct addrinfo *addresses = NULL;
+    struct addrinfo *current;
+    char service[6];
+    int result = -1;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    snprintf(service, sizeof(service), "%u", port);
+    if (getaddrinfo(host, service, &hints, &addresses) != 0) return -1;
+    for (current = addresses; current != NULL; current = current->ai_next) {
+        int candidate = socket(current->ai_family,
+                current->ai_socktype | SOCK_CLOEXEC, current->ai_protocol);
+        if (candidate < 0) continue;
+        if (connect(candidate, current->ai_addr, current->ai_addrlen) == 0) {
+            result = candidate;
+            break;
+        }
+        close(candidate);
+    }
+    freeaddrinfo(addresses);
+    return result;
+}
 
 static void close_fd(int *fd) {
     if (*fd >= 0) {
@@ -134,10 +162,16 @@ static void *connection_main(void *argument) {
         }
     }
     if (parsed == TAILNET_CONNECT_OK || parsed == TAILNET_CONNECT_ABSOLUTE_FORM) {
-        tailscale_conn tailnet_fd = -1;
-        if (tailscale_dial(connection->adapter->node, "tcp", target.address, &tailnet_fd) == 0) {
+        int upstream_fd = -1;
+        int tailnet_route = tailnet_domain_policy_matches(
+            connection->adapter->policy, target.host);
+        int connected = tailnet_route
+            ? tailscale_dial(connection->adapter->node, "tcp",
+                target.address, &upstream_fd) == 0
+            : (upstream_fd = connect_direct(target.host, target.port)) >= 0;
+        if (connected) {
             pthread_mutex_lock(&connection->adapter->mutex);
-            if (!connection->adapter->stopping) connection->tailnet_fd = tailnet_fd;
+            if (!connection->adapter->stopping) connection->tailnet_fd = upstream_fd;
             pthread_mutex_unlock(&connection->adapter->mutex);
             if (connection->tailnet_fd >= 0) {
                 if (parsed == TAILNET_CONNECT_OK) {
@@ -152,7 +186,7 @@ static void *connection_main(void *argument) {
                 }
                 relay_connection(connection);
             } else {
-                close(tailnet_fd);
+                close(upstream_fd);
             }
         } else {
             send_response(connection->client_fd, "502 Bad Gateway");
@@ -212,12 +246,17 @@ static void *accept_main(void *argument) {
     }
 }
 
-tailnet_connect_adapter *tailnet_connect_adapter_start(tailscale node) {
+tailnet_connect_adapter *tailnet_connect_adapter_start(
+    tailscale node, tailnet_domain_policy *policy) {
     tailnet_connect_adapter *adapter = calloc(1, sizeof(*adapter));
     struct sockaddr_in address;
     socklen_t address_length = sizeof(address);
-    if (adapter == NULL) return NULL;
+    if (adapter == NULL || policy == NULL) {
+        free(adapter);
+        return NULL;
+    }
     adapter->node = node;
+    adapter->policy = policy;
     adapter->listener_fd = -1;
     pthread_mutex_init(&adapter->mutex, NULL);
     pthread_cond_init(&adapter->workers_done, NULL);
@@ -240,6 +279,7 @@ fail:
     close_fd(&adapter->listener_fd);
     pthread_cond_destroy(&adapter->workers_done);
     pthread_mutex_destroy(&adapter->mutex);
+    tailnet_domain_policy_destroy(adapter->policy);
     free(adapter);
     return NULL;
 }
@@ -275,5 +315,6 @@ void tailnet_connect_adapter_stop(tailnet_connect_adapter *adapter) {
     pthread_mutex_unlock(&adapter->mutex);
     pthread_cond_destroy(&adapter->workers_done);
     pthread_mutex_destroy(&adapter->mutex);
+    tailnet_domain_policy_destroy(adapter->policy);
     free(adapter);
 }

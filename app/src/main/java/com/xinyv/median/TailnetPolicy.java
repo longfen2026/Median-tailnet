@@ -3,10 +3,8 @@ package com.xinyv.median;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-/** Defines the isolation boundary for the embedded Tailnet browsing profile. */
+/** Validates local proxy endpoints used by the embedded Tailnet router. */
 final class TailnetPolicy {
-    static final String PROCESS_SUFFIX = ":tailnet";
-
     private TailnetPolicy() {}
 
     static boolean isLoopbackSocksEndpoint(String host, int port) {
@@ -32,8 +30,8 @@ final class TailnetPolicy {
         }
     }
 
-    static boolean mayUseTailnetProxy(String processName, String host, int port) {
-        return PROCESS_SUFFIX.equals(processName) && isLoopbackSocksEndpoint(host, port);
+    static boolean mayUseTailnetProxy(String host, int port) {
+        return isLoopbackSocksEndpoint(host, port);
     }
 
     static String normalizeLoopbackSocksUrl(String source) {

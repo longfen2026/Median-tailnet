@@ -6,19 +6,18 @@ import androidx.webkit.WebViewFeature;
 
 import java.util.concurrent.Executor;
 
-/** Owns the process-wide WebView HTTP proxy override in the isolated Tailnet process. */
+/** Owns the process-wide WebView HTTP proxy override used by the routing proxy. */
 final class TailnetProxyController {
     interface Callback {
         void onApplied();
         void onFailure(String message);
     }
 
-    private final String processSuffix;
     private final Executor callbackExecutor;
     private String activeProxyUrl;
+    private long operationGeneration;
 
-    TailnetProxyController(String processSuffix, Executor callbackExecutor) {
-        this.processSuffix = processSuffix;
+    TailnetProxyController(Executor callbackExecutor) {
         this.callbackExecutor = callbackExecutor;
     }
 
@@ -35,8 +34,8 @@ final class TailnetProxyController {
             callback.onFailure(error.getMessage());
             return;
         }
-        if (!TailnetPolicy.mayUseTailnetProxy(processSuffix, endpoint.host, endpoint.port)) {
-            callback.onFailure("Tailnet 代理必须是隔离进程中的回环地址");
+        if (!TailnetPolicy.mayUseTailnetProxy(endpoint.host, endpoint.port)) {
+            callback.onFailure("Tailnet 代理必须使用回环地址");
             return;
         }
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
@@ -50,12 +49,16 @@ final class TailnetProxyController {
         ProxyConfig config = new ProxyConfig.Builder()
                 .addProxyRule(endpoint.proxyUrl)
                 .build();
+        final long operation = ++operationGeneration;
         try {
             ProxyController.getInstance().setProxyOverride(config, callbackExecutor, new Runnable() {
                 @Override public void run() {
+                    boolean stale;
                     synchronized (TailnetProxyController.this) {
-                        activeProxyUrl = endpoint.proxyUrl;
+                        stale = operation != operationGeneration;
+                        if (!stale) activeProxyUrl = endpoint.proxyUrl;
                     }
+                    if (stale) return;
                     callback.onApplied();
                 }
             });
@@ -66,22 +69,23 @@ final class TailnetProxyController {
 
     synchronized void clear(final Runnable complete) {
         if (complete == null) throw new NullPointerException("complete");
-        if (activeProxyUrl == null) {
-            complete.run();
-            return;
-        }
+        final long operation = ++operationGeneration;
         try {
             ProxyController.getInstance().clearProxyOverride(callbackExecutor, new Runnable() {
                 @Override public void run() {
+                    boolean current;
                     synchronized (TailnetProxyController.this) {
-                        activeProxyUrl = null;
+                        current = operation == operationGeneration;
+                        if (current) activeProxyUrl = null;
                     }
-                    complete.run();
+                    if (current) complete.run();
                 }
             });
         } catch (RuntimeException ignored) {
-            activeProxyUrl = null;
-            complete.run();
+            if (operation == operationGeneration) {
+                activeProxyUrl = null;
+                complete.run();
+            }
         }
     }
 

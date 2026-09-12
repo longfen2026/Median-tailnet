@@ -4,10 +4,12 @@
 #include <stddef.h>
 
 #include "tailscale.h"
+#include "tailnet_domain_policy.h"
 
 typedef struct tailnet_connect_adapter tailnet_connect_adapter;
 
-tailnet_connect_adapter *tailnet_connect_adapter_start(tailscale node);
+tailnet_connect_adapter *tailnet_connect_adapter_start(
+        tailscale node, tailnet_domain_policy *policy);
 int tailnet_connect_adapter_address(
         tailnet_connect_adapter *adapter, char *buffer, size_t buffer_size);
 void tailnet_connect_adapter_stop(tailnet_connect_adapter *adapter);

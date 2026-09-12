@@ -4,7 +4,7 @@ import android.content.Context;
 
 import java.io.File;
 
-/** JNI boundary for the optional libtailscale node in the isolated Tailnet process. */
+/** JNI boundary for the optional libtailscale node used by Median's routing proxy. */
 final class TailnetNative {
     private static boolean loaded;
 
@@ -62,9 +62,10 @@ final class TailnetNative {
         return new LoopbackSocksEndpoint(normalizeLoopbackAddress(address));
     }
 
-    static ConnectAdapter startConnectAdapter(int handle) {
+    static ConnectAdapter startConnectAdapter(int handle, String[] domainRules) {
         if (handle <= 0) throw new IllegalArgumentException("Tailnet 节点无效");
-        long adapterHandle = nativeStartConnectAdapter(handle);
+        if (domainRules == null) throw new NullPointerException("domainRules");
+        long adapterHandle = nativeStartConnectAdapter(handle, domainRules);
         if (adapterHandle == 0) throw new IllegalStateException("无法启动 Tailnet HTTP 代理");
         String proxyUrl = nativeConnectAdapterAddress(adapterHandle);
         if (proxyUrl == null) {
@@ -116,7 +117,7 @@ final class TailnetNative {
         static native int nativeUpdateNetwork(int handle, String interfacesJson,
             String defaultInterfaceName);
     static native String nativeCreateLoopbackSocksAddress(int handle);
-    static native long nativeStartConnectAdapter(int handle);
+    static native long nativeStartConnectAdapter(int handle, String[] domainRules);
     static native String nativeConnectAdapterAddress(long adapterHandle);
     static native void nativeStopConnectAdapter(long adapterHandle);
     static native String nativeStatusJson(int handle);

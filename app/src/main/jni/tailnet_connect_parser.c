@@ -10,7 +10,7 @@ static int is_host_character(unsigned char value) {
             value == '.' || value == '-' || value == '_';
 }
 
-static int parse_port(const char *value, size_t length) {
+    static int parse_port(const char *value, size_t length, unsigned short *parsed_port) {
     uint32_t port = 0;
     size_t index;
     if (length == 0 || length > 5) return 0;
@@ -19,10 +19,13 @@ static int parse_port(const char *value, size_t length) {
         if (character < '0' || character > '9') return 0;
         port = port * 10u + (uint32_t) (character - '0');
     }
-    return port > 0 && port <= 65535;
+    if (port == 0 || port > 65535) return 0;
+    if (parsed_port != NULL) *parsed_port = (unsigned short) port;
+    return 1;
 }
 
-static int validate_authority(const char *authority, size_t length) {
+static int parse_authority(const char *authority, size_t length,
+        char *host, size_t host_size, unsigned short *port) {
     size_t host_start = 0;
     size_t host_end;
     size_t port_start;
@@ -51,11 +54,14 @@ static int validate_authority(const char *authority, size_t length) {
         if (host_end == 0 || host_end >= length) return 0;
         port_start = host_end + 1;
     }
-    if (!parse_port(authority + port_start, length - port_start)) return 0;
+    if (!parse_port(authority + port_start, length - port_start, port)) return 0;
     for (index = port_start; index < length; ++index) {
         if (authority[index] == ':' || authority[index] == '@' ||
                 authority[index] == '/' || authority[index] == '\\') return 0;
     }
+    if (host_end - host_start >= host_size) return 0;
+    memcpy(host, authority + host_start, host_end - host_start);
+    host[host_end - host_start] = '\0';
     return 1;
 }
 
@@ -105,7 +111,6 @@ static size_t parse_absolute_authority(const char *request, size_t length,
     }
     authority_length = target_end - target_start;
     if (authority_length == 0 || authority_length >= authority_size) return 0;
-    if (!validate_authority(request + target_start, authority_length)) return 0;
     memcpy(authority, request + target_start, authority_length);
     authority[authority_length] = '\0';
     return authority_length;
@@ -148,6 +153,9 @@ tailnet_connect_result tailnet_parse_connect_request(
            so plain-HTTP navigations can also ride the Tailnet tunnel. */
         if (parse_absolute_authority(request, length > header_end ? header_end : length,
                 target->address, sizeof(target->address)) != 0) {
+            if (!parse_authority(target->address, strlen(target->address),
+                target->host, sizeof(target->host), &target->port))
+            return TAILNET_CONNECT_BAD_REQUEST;
             target->consumed = 0;
             return TAILNET_CONNECT_ABSOLUTE_FORM;
         }
@@ -164,7 +172,8 @@ tailnet_connect_result tailnet_parse_connect_request(
                     version, sizeof(version) - 1) != 0)
         return TAILNET_CONNECT_BAD_REQUEST;
     authority_length = line_end - authority_start - (sizeof(version) - 3);
-    if (!validate_authority(request + authority_start, authority_length))
+    if (!parse_authority(request + authority_start, authority_length,
+            target->host, sizeof(target->host), &target->port))
         return TAILNET_CONNECT_BAD_REQUEST;
     memcpy(target->address, request + authority_start, authority_length);
     target->address[authority_length] = '\0';

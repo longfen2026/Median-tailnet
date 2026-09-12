@@ -19,6 +19,8 @@ typedef enum {
 
 typedef struct {
     char address[TAILNET_CONNECT_MAX_ADDRESS];
+    char host[TAILNET_CONNECT_MAX_ADDRESS];
+    unsigned short port;
     size_t consumed;
 } tailnet_connect_target;
 

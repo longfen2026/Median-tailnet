@@ -18,10 +18,10 @@ public final class TailnetPolicySelfTest {
                 "resolvable hostname endpoint accepted as Tailnet proxy");
         check(!TailnetPolicy.isLoopbackSocksEndpoint("127.0.0.1", 0),
                 "invalid SOCKS port accepted");
-        check(TailnetPolicy.mayUseTailnetProxy(":tailnet", "127.0.0.1", 1080),
-                "isolated Tailnet process rejected");
-        check(!TailnetPolicy.mayUseTailnetProxy(":private", "127.0.0.1", 1080),
-                "private profile accepted Tailnet proxy");
+        check(TailnetPolicy.mayUseTailnetProxy("127.0.0.1", 1080),
+                "main-process loopback proxy rejected");
+        check(!TailnetPolicy.mayUseTailnetProxy("10.0.0.1", 1080),
+                "non-loopback routing proxy accepted");
         check("http://127.0.0.1:9080".equals(
                         TailnetPolicy.normalizeLoopbackHttpProxyUrl("http://127.0.0.1:9080")),
                 "IPv4 HTTP proxy endpoint was not normalized");

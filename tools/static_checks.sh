@@ -129,11 +129,14 @@ rg -Fq 'android:authorities="${applicationId}.downloads"' app/src/main/AndroidMa
 rg -q 'EXPECTED_SHA256=20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78' gradlew
 rg -Fq 'BuildConfig.APPLICATION_ID + ".offline"' app/src/main/java/com/xinyv/median/OfflineContentProvider.java
 rg -Fq 'android:taskAffinity="${applicationId}.private"' app/src/main/AndroidManifest.xml
-rg -Fq 'android:process=":tailnet"' app/src/main/AndroidManifest.xml
-rg -Fq 'android:taskAffinity="${applicationId}.tailnet"' app/src/main/AndroidManifest.xml
-rg -Fq 'static final String PROCESS_SUFFIX = ":tailnet"' app/src/main/java/com/xinyv/median/TailnetPolicy.java
+if rg -n 'TailnetActivity|android:process=":tailnet"|applicationId}.tailnet' app/src; then
+  echo 'Dedicated Tailnet browsing surfaces must stay removed.' >&2
+  exit 1
+fi
+rg -Fq 'tailnetManager = new TailnetManager' app/src/main/java/com/xinyv/median/MainActivity.java
+rg -Fq 'TailnetNative.startConnectAdapter(node, rules)' app/src/main/java/com/xinyv/median/TailnetManager.java
 rg -Fq 'WebViewFeature.PROXY_OVERRIDE' app/src/main/java/com/xinyv/median/TailnetProxyController.java
-rg -Fq 'TailnetPolicy.normalizeLoopbackSocksUrl(source)' app/src/main/java/com/xinyv/median/TailnetProxyController.java
+rg -Fq 'TailnetPolicy.normalizeLoopbackHttpProxyUrl(source)' app/src/main/java/com/xinyv/median/TailnetProxyController.java
 rg -Fq '"[" + host + "]"' app/src/main/java/com/xinyv/median/TailnetPolicy.java
 rg -Fq 'NetworkSecurity.isCredentialHeader(name)' app/src/main/java/com/xinyv/median/MainActivity.java
 rg -Fq 'NetworkSecurity.isCredentialHeader(name)' app/src/main/java/com/xinyv/median/AdaptiveDownloadService.java
@@ -412,6 +415,10 @@ javac --release 17 -d "$TMP" \
   app/src/main/java/com/xinyv/median/TailnetPolicy.java \
   tools/tests/TailnetPolicySelfTest.java
 java -cp "$TMP" com.xinyv.median.TailnetPolicySelfTest
+javac -encoding UTF-8 --release 17 -d "$TMP" \
+  app/src/main/java/com/xinyv/median/TailnetDomainPolicy.java \
+  tools/tests/TailnetDomainPolicySelfTest.java
+java -cp "$TMP" com.xinyv.median.TailnetDomainPolicySelfTest
 javac --release 17 -d "$TMP" \
   app/src/main/java/com/xinyv/median/InitialNavigationGuard.java \
   tools/tests/InitialNavigationGuardSelfTest.java

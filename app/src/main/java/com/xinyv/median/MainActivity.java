@@ -132,6 +132,8 @@ public final class MainActivity extends ComponentActivity implements Runnable {
     private static final String HOME_URL = "https://median.invalid/";
     private static final String STATE_WEBVIEW = "median.webview.state";
     private static final String PREF_STARTUP_DIAGNOSTIC = "startup_diagnostic_v1";
+    private static final String PREF_TAILNET_ENABLED = "tailnet_enabled";
+    private static final String PREF_TAILNET_DOMAINS = "tailnet_domains";
     private static final String HOME_TOKEN = UrlCleaner.randomToken();
     private static final int MAX_TABS = 64;
     private static final long INITIAL_NAVIGATION_ACK_MS = 450L;
@@ -254,6 +256,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
     private SiteSettingsStore siteSettingsStore;
     private DeviceProfile deviceProfile;
     private SharedPreferences prefs;
+    private TailnetManager tailnetManager;
     private volatile boolean adBlockEnabled;
     private boolean desktopMode;
     private boolean nightMode;
@@ -409,6 +412,11 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         navigationExecutor = BackgroundExecutor.create(1, 2, "median-navigation", true);
         scriptExecutor = BackgroundExecutor.create(1, 64, "median-work", false);
         scriptNetworkExecutor = BackgroundExecutor.create(3, 96, "median-network", false);
+        tailnetManager = new TailnetManager(this, new TailnetManager.Listener() {
+            @Override public void onStateChanged() {}
+        });
+        tailnetManager.configure(prefs.getBoolean(PREF_TAILNET_ENABLED, false),
+            prefs.getStringSet(PREF_TAILNET_DOMAINS, Collections.<String>emptySet()));
 
         BrowserTab first = new BrowserTab();
         tabs.add(first);
@@ -3172,7 +3180,6 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                 "标签页工具",
                 "下载中心",
                 "新建独立隐私窗口",
-                "Tailnet 浏览",
                 bookmarked ? "管理当前收藏" : "收藏当前页面",
                 "当前网站设置",
                 "桌面网站\n为当前页面切换桌面布局",
@@ -3184,22 +3191,22 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         };
         int[] icons = new int[] {
                 BrowserIconView.PLUS, BrowserIconView.TABS, BrowserIconView.DOWNLOAD, BrowserIconView.SHIELD,
-            BrowserIconView.SHIELD, BrowserIconView.BOOKMARK, BrowserIconView.SHIELD, BrowserIconView.DESKTOP,
+                BrowserIconView.BOOKMARK, BrowserIconView.SHIELD, BrowserIconView.DESKTOP,
                 BrowserIconView.APPEARANCE, BrowserIconView.MENU, BrowserIconView.HISTORY,
                 BrowserIconView.SHIELD, BrowserIconView.SETTINGS
         };
         int[] kinds = new int[] {
                 SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_ACTION,
-            SHEET_ROW_ACTION, SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE,
+                SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE,
                 desktopMode ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 nightMode ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE
         };
         String[] sections = new String[items.length];
         sections[0] = "浏览";
-        sections[5] = "当前页面";
-        sections[10] = "资料与工具";
-        sections[12] = "浏览器";
+        sections[4] = "当前页面";
+        sections[9] = "资料与工具";
+        sections[11] = "浏览器";
         showActionSheet("Median", subtitle, items, icons, kinds, sections, null, new SheetHandler() {
             @Override public void onItem(int which) {
                 switch (which) {
@@ -3207,25 +3214,24 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                     case 1: showTabTools(); break;
                     case 2: showDownloadCenter(); break;
                     case 3: openPrivateWindow(); break;
-                    case 4: openTailnetBrowser(); break;
-                    case 5: toggleCurrentBookmark(); break;
-                    case 6: showSiteSettings(); break;
-                    case 7:
+                    case 4: toggleCurrentBookmark(); break;
+                    case 5: showSiteSettings(); break;
+                    case 6:
                         desktopMode = !desktopMode;
                         prefs.edit().putBoolean("desktop", desktopMode).apply();
                         applyDesktopMode();
                         webView.reload();
                         break;
-                    case 8:
+                    case 7:
                         nightMode = !nightMode;
                         prefs.edit().putBoolean("night_mode", nightMode).apply();
                         applyDarkMode();
                         if (isHomeUrl(currentPageUrl)) showHome();
                         break;
-                    case 9: showPageTools(); break;
-                    case 10: showBrowserLibrary(); break;
-                    case 11: showPrivacyTools(); break;
-                    case 12: showBrowserSettings(); break;
+                    case 8: showPageTools(); break;
+                    case 9: showBrowserLibrary(); break;
+                    case 10: showPrivacyTools(); break;
+                    case 11: showBrowserSettings(); break;
                     default: break;
                 }
             }
@@ -3258,11 +3264,6 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         }
         try { startActivity(new Intent(this, PrivateActivity.class)); }
         catch (Exception e) { toast("无法启动隐私窗口"); }
-    }
-
-    private void openTailnetBrowser() {
-        try { startActivity(new Intent(this, TailnetActivity.class)); }
-        catch (Exception e) { toast("无法启动 Tailnet 浏览"); }
     }
 
     private void toggleCurrentBookmark() {
@@ -4105,6 +4106,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                 "HTTPS 优先\n自动把可升级的地址优先使用安全连接",
                 "跟踪参数清理\n打开网页前移除常见的跨站跟踪参数",
                 "第三方 Cookie\n默认阻止；仍可在网站设置中单独放行",
+                "Tailnet 分流\n" + tailnetStatusLabel(),
                 "每次打开\n当前：" + homeOpenBehaviorLabel(),
                 "搜索\n当前：" + searchEngineLabel() + " · 默认与自定义规则",
                 "主页与外观\n布局、Logo、搜索框、背景与快捷网站",
@@ -4115,22 +4117,23 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         };
         int[] icons = new int[] {
                 BrowserIconView.SHIELD, BrowserIconView.CLEAN, BrowserIconView.COOKIE,
-                BrowserIconView.STARTUP, BrowserIconView.SEARCH, BrowserIconView.APPEARANCE,
+            BrowserIconView.SHIELD, BrowserIconView.STARTUP, BrowserIconView.SEARCH, BrowserIconView.APPEARANCE,
                 BrowserIconView.BOOKMARK, BrowserIconView.SPEED, BrowserIconView.STORAGE, BrowserIconView.INFO
         };
         int[] kinds = new int[] {
                 httpsOnly ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 cleanTrackingParameters ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 acceptThirdPartyCookies ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
-                SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE,
+                SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE,
                 SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE
         };
         String[] sections = new String[items.length];
         sections[0] = "隐私与安全";
-        sections[3] = "启动与搜索";
-        sections[5] = "界面";
-        sections[7] = "资源与数据";
-        sections[9] = "信息";
+        sections[3] = "网络";
+        sections[4] = "启动与搜索";
+        sections[6] = "界面";
+        sections[8] = "资源与数据";
+        sections[10] = "信息";
         showActionSheet("浏览器设置", "轻触开关立即保存 · 返回键只关闭设置", items, icons,
                 kinds, sections, null, new SheetHandler() {
             @Override public void onItem(int which) {
@@ -4148,16 +4151,125 @@ public final class MainActivity extends ComponentActivity implements Runnable {
                             "第三方 Cookie 已默认阻止，可按网站放行");
                 } else {
                     final Runnable returnAction = MainActivity.this;
-                    if (which == 3) showHomeOpenBehaviorChoice(false);
-                    else if (which == 4) showSearchSettings();
-                    else if (which == 5) showHomeCustomization(returnAction);
-                    else if (which == 6) openBookmarkManager(returnAction);
-                    else if (which == 7) showPerformancePanel(returnAction);
-                    else if (which == 8) showStoragePanel(returnAction);
+                    if (which == 3) showTailnetSettings();
+                    else if (which == 4) showHomeOpenBehaviorChoice(false);
+                    else if (which == 5) showSearchSettings();
+                    else if (which == 6) showHomeCustomization(returnAction);
+                    else if (which == 7) openBookmarkManager(returnAction);
+                    else if (which == 8) showPerformancePanel(returnAction);
+                    else if (which == 9) showStoragePanel(returnAction);
                     else showAbout(returnAction);
                 }
             }
         });
+    }
+
+    private String tailnetStatusLabel() {
+        if (!prefs.getBoolean(PREF_TAILNET_ENABLED, false)) return "关闭 · 普通网络直连";
+        if (tailnetManager == null) return "正在启动";
+        switch (tailnetManager.state()) {
+            case NEEDS_LOGIN: return "等待登录授权";
+            case RUNNING: return "已连接 · Tailnet 域走隧道，其他域直连";
+            case ERROR: return "连接错误";
+            case CONNECTING: return "正在连接";
+            case STARTING: return "正在启动";
+            default: return "关闭";
+        }
+    }
+
+    private void showTailnetSettings() {
+        final boolean enabled = prefs.getBoolean(PREF_TAILNET_ENABLED, false);
+        Set<String> domains = prefs.getStringSet(PREF_TAILNET_DOMAINS, Collections.<String>emptySet());
+        String[] items = new String[] {
+                "启用 Tailnet 分流\n" + tailnetStatusLabel(),
+                "登录授权\n" + (tailnetManager != null && tailnetManager.authUrl() != null ?
+                        "需要在浏览器中完成登录" : "连接需要授权时可在此打开"),
+                "自定义 Tailnet 域名\n默认 *.ts.net · 已添加 " + domains.size() + " 个"
+        };
+        int[] kinds = new int[] {
+                enabled ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
+                SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE
+        };
+        showActionSheet("Tailnet 分流", "匹配域名通过 Tailnet，其余连接使用普通网络",
+                items, new int[] { BrowserIconView.SHIELD, BrowserIconView.SHARE, BrowserIconView.SETTINGS },
+                kinds, null, this, new SheetHandler() {
+                    @Override public void onItem(int which) {
+                        if (which == 0) {
+                            boolean next = !enabled;
+                            prefs.edit().putBoolean(PREF_TAILNET_ENABLED, next).apply();
+                            tailnetManager.configure(next, prefs.getStringSet(PREF_TAILNET_DOMAINS,
+                                    Collections.<String>emptySet()));
+                            toast(next ? "Tailnet 正在启动" : "Tailnet 已关闭，网络恢复直连");
+                            showTailnetSettings();
+                        } else if (which == 1) openTailnetAuthorization();
+                        else showTailnetDomainEditor();
+                    }
+                });
+    }
+
+    private void openTailnetAuthorization() {
+        String authUrl = tailnetManager == null ? null : tailnetManager.authUrl();
+        if (authUrl == null) {
+            toast(prefs.getBoolean(PREF_TAILNET_ENABLED, false) ?
+                    "Tailnet 尚未请求登录授权" : "请先启用 Tailnet");
+            return;
+        }
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))); }
+        catch (RuntimeException error) { toast("无法打开 Tailnet 登录页面"); }
+    }
+
+    private void showTailnetDomainEditor() {
+        final EditText input = new EditText(this);
+        Set<String> saved = prefs.getStringSet(PREF_TAILNET_DOMAINS, Collections.<String>emptySet());
+        ArrayList<String> sorted = new ArrayList<String>(saved);
+        Collections.sort(sorted);
+        StringBuilder text = new StringBuilder();
+        for (String rule : sorted) {
+            if (text.length() > 0) text.append('\n');
+            text.append("*.").append(rule);
+        }
+        input.setText(text.toString());
+        input.setHint("例如：*.example.com");
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setMinLines(5);
+        input.setPadding(dp(16), dp(8), dp(16), dp(8));
+        final AlertDialog dialog = new AlertDialog.Builder(this).setTitle("自定义 Tailnet 域名")
+                .setMessage("每行一个域名后缀。默认 *.ts.net 始终通过 Tailnet，无需重复添加。")
+                .setView(input).setPositiveButton("保存", null)
+                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface ignored, int which) { showTailnetSettings(); }
+                }).create();
+        dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+            @Override public void onCancel(DialogInterface ignored) { showTailnetSettings(); }
+        });
+        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override public void onShow(DialogInterface ignored) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(View view) {
+                        HashSet<String> normalized = new HashSet<String>();
+                        try {
+                            for (String line : input.getText().toString().split("[\\r\\n]+")) {
+                                if (line.trim().length() == 0) continue;
+                                String rule = TailnetDomainPolicy.normalizeRule(line);
+                                if (!TailnetDomainPolicy.DEFAULT_RULE.equals(rule)) normalized.add(rule);
+                            }
+                        } catch (IllegalArgumentException error) {
+                            toast(error.getMessage());
+                            return;
+                        }
+                        if (!prefs.edit().putStringSet(PREF_TAILNET_DOMAINS, normalized).commit()) {
+                            toast("Tailnet 域名保存失败");
+                            return;
+                        }
+                        tailnetManager.configure(prefs.getBoolean(PREF_TAILNET_ENABLED, false), normalized);
+                        dialog.dismiss();
+                        toast("Tailnet 域名规则已保存");
+                        showTailnetSettings();
+                    }
+                });
+            }
+        });
+        dialog.show();
     }
 
     private void showSearchSettings() {
@@ -8964,6 +9076,7 @@ public final class MainActivity extends ComponentActivity implements Runnable {
         if (pendingGeolocationCallback != null) pendingGeolocationCallback.invoke(pendingGeolocationOrigin, false, false);
         dismissOverlay();
         uiHandler.removeCallbacksAndMessages(null);
+        if (tailnetManager != null) tailnetManager.close();
         if (startupExecutor != null) startupExecutor.shutdownNow();
         if (navigationExecutor != null) navigationExecutor.shutdownNow();
         if (scriptExecutor != null) scriptExecutor.shutdownNow();

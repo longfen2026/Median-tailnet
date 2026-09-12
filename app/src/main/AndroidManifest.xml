@@ -78,12 +78,5 @@
             android:launchMode="singleTask"
             android:process=":private"
             android:taskAffinity="${applicationId}.private" />
-        <activity
-            android:name=".TailnetActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:process=":tailnet"
-            android:taskAffinity="${applicationId}.tailnet" />
     </application>
 </manifest>

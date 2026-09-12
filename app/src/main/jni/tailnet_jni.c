@@ -205,11 +205,35 @@ Java_com_xinyv_median_TailnetNative_nativeCreateLoopbackSocksAddress(
 
 JNIEXPORT jlong JNICALL
 Java_com_xinyv_median_TailnetNative_nativeStartConnectAdapter(
-        JNIEnv *env, jclass clazz, jint handle) {
-    (void) env;
+        JNIEnv *env, jclass clazz, jint handle, jobjectArray domain_rules) {
     (void) clazz;
     if (handle <= 0) return 0;
-    return (jlong) (intptr_t) tailnet_connect_adapter_start(handle);
+    jsize rule_count = domain_rules == NULL ? 0 : (*env)->GetArrayLength(env, domain_rules);
+    const char **rules = calloc((size_t) rule_count, sizeof(*rules));
+    jstring *values = calloc((size_t) rule_count, sizeof(*values));
+    tailnet_domain_policy *policy = NULL;
+    tailnet_connect_adapter *adapter = NULL;
+    jsize index;
+    if (rule_count > 0 && (rules == NULL || values == NULL)) goto done;
+    for (index = 0; index < rule_count; ++index) {
+        values[index] = (jstring) (*env)->GetObjectArrayElement(env, domain_rules, index);
+        if (values[index] == NULL) goto done;
+        rules[index] = (*env)->GetStringUTFChars(env, values[index], NULL);
+        if (rules[index] == NULL) goto done;
+    }
+    policy = tailnet_domain_policy_create(rules, (size_t) rule_count);
+    if (policy != NULL) adapter = tailnet_connect_adapter_start(handle, policy);
+done:
+    for (index = 0; index < rule_count; ++index) {
+        if (rules != NULL && rules[index] != NULL)
+            (*env)->ReleaseStringUTFChars(env, values[index], rules[index]);
+        if (values != NULL && values[index] != NULL)
+            (*env)->DeleteLocalRef(env, values[index]);
+    }
+    free(values);
+    free(rules);
+    if (adapter == NULL) tailnet_domain_policy_destroy(policy);
+    return (jlong) (intptr_t) adapter;
 }
 
 JNIEXPORT jstring JNICALL

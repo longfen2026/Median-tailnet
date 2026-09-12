@@ -3194,6 +3194,7 @@ public final class MainActivity extends Activity implements Runnable {
                 "标签页工具",
                 "下载中心",
                 "新建独立隐私窗口",
+                "Tailnet 浏览",
                 bookmarked ? "管理当前收藏" : "收藏当前页面",
                 "当前网站设置",
                 "桌面网站\n为当前页面切换桌面布局",
@@ -3205,22 +3206,22 @@ public final class MainActivity extends Activity implements Runnable {
         };
         int[] icons = new int[] {
                 BrowserIconView.PLUS, BrowserIconView.TABS, BrowserIconView.DOWNLOAD, BrowserIconView.SHIELD,
-                BrowserIconView.BOOKMARK, BrowserIconView.SHIELD, BrowserIconView.DESKTOP,
+            BrowserIconView.SHIELD, BrowserIconView.BOOKMARK, BrowserIconView.SHIELD, BrowserIconView.DESKTOP,
                 BrowserIconView.APPEARANCE, BrowserIconView.MENU, BrowserIconView.HISTORY,
                 BrowserIconView.SHIELD, BrowserIconView.SETTINGS
         };
         int[] kinds = new int[] {
                 SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_ACTION,
-                SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE,
+            SHEET_ROW_ACTION, SHEET_ROW_ACTION, SHEET_ROW_NAVIGATE,
                 desktopMode ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 nightMode ? SHEET_ROW_TOGGLE_ON : SHEET_ROW_TOGGLE_OFF,
                 SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE, SHEET_ROW_NAVIGATE
         };
         String[] sections = new String[items.length];
         sections[0] = "浏览";
-        sections[4] = "当前页面";
-        sections[9] = "资料与工具";
-        sections[11] = "浏览器";
+        sections[5] = "当前页面";
+        sections[10] = "资料与工具";
+        sections[12] = "浏览器";
         showActionSheet("Median", subtitle, items, icons, kinds, sections, null, new SheetHandler() {
             @Override public void onItem(int which) {
                 switch (which) {
@@ -3228,24 +3229,25 @@ public final class MainActivity extends Activity implements Runnable {
                     case 1: showTabTools(); break;
                     case 2: showDownloadCenter(); break;
                     case 3: openPrivateWindow(); break;
-                    case 4: toggleCurrentBookmark(); break;
-                    case 5: showSiteSettings(); break;
-                    case 6:
+                    case 4: openTailnetBrowser(); break;
+                    case 5: toggleCurrentBookmark(); break;
+                    case 6: showSiteSettings(); break;
+                    case 7:
                         desktopMode = !desktopMode;
                         prefs.edit().putBoolean("desktop", desktopMode).apply();
                         applyDesktopMode();
                         webView.reload();
                         break;
-                    case 7:
+                    case 8:
                         nightMode = !nightMode;
                         prefs.edit().putBoolean("night_mode", nightMode).apply();
                         applyDarkMode();
                         if (isHomeUrl(currentPageUrl)) showHome();
                         break;
-                    case 8: showPageTools(); break;
-                    case 9: showBrowserLibrary(); break;
-                    case 10: showPrivacyTools(); break;
-                    case 11: showBrowserSettings(); break;
+                    case 9: showPageTools(); break;
+                    case 10: showBrowserLibrary(); break;
+                    case 11: showPrivacyTools(); break;
+                    case 12: showBrowserSettings(); break;
                     default: break;
                 }
             }
@@ -3278,6 +3280,11 @@ public final class MainActivity extends Activity implements Runnable {
         }
         try { startActivity(new Intent(this, PrivateActivity.class)); }
         catch (Exception e) { toast("无法启动隐私窗口"); }
+    }
+
+    private void openTailnetBrowser() {
+        try { startActivity(new Intent(this, TailnetActivity.class)); }
+        catch (Exception e) { toast("无法启动 Tailnet 浏览"); }
     }
 
     private void toggleCurrentBookmark() {

@@ -1,0 +1,574 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Validate Tailnet Java integration",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:compileDebugJavaWithJavac",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Tailnet debug APKs",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Rebuild Tailnet teardown fix",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build async Tailnet teardown",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build async Tailnet initialization",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$javac"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Inspect Tailnet process",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"pidof",
+				"com.xinyv.median.compat.debug:tailnet"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Read Tailnet runtime logs",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"logcat",
+				"-d",
+				"-t",
+				"800",
+				"TailnetActivity:E",
+				"AndroidRuntime:E",
+				"TestRunner:I",
+				"*:S"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Inspect emulator activities",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"dumpsys",
+				"activity",
+				"activities"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Build instrumented Tailnet probe",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Install instrumented Tailnet probe",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run instrumented Tailnet probe",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"instrument",
+				"-w",
+				"-r",
+				"-e",
+				"class",
+				"com.xinyv.median.MainActivitySecuritySmokeTest#tailnetActivityWaitsForLoopbackProxyBeforeCreatingWebView",
+				"com.xinyv.median.compat.debug.test/androidx.test.runner.AndroidJUnitRunner"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Validate Tailnet lifecycle ownership",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:compileDebugJavaWithJavac",
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Install lifecycle-fixed app",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\debug\\app-debug.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Install lifecycle-fixed tests",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run final Tailnet security smoke suite",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"instrument",
+				"-w",
+				"-r",
+				"-e",
+				"class",
+				"com.xinyv.median.MainActivitySecuritySmokeTest",
+				"com.xinyv.median.compat.debug.test/androidx.test.runner.AndroidJUnitRunner"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Validate Tailnet status bridge",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:compileDebugJavaWithJavac",
+				":app:externalNativeBuildDebug",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Compile Tailnet authorization flow",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:compileDebugJavaWithJavac",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build Tailnet authorization stage",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Rebuild Tailnet authorization checks",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Install Tailnet authorization app",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\debug\\app-debug.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Install Tailnet authorization tests",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Tailnet status parser tests",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"instrument",
+				"-w",
+				"-r",
+				"-e",
+				"class",
+				"com.xinyv.median.TailnetStatusTest",
+				"com.xinyv.median.compat.debug.test/androidx.test.runner.AndroidJUnitRunner"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Tailnet security smoke tests",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"instrument",
+				"-w",
+				"-r",
+				"-e",
+				"class",
+				"com.xinyv.median.MainActivitySecuritySmokeTest",
+				"com.xinyv.median.compat.debug.test/androidx.test.runner.AndroidJUnitRunner"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Build fail-closed smoke assertion",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebugAndroidTest",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Install strengthened smoke test",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\androidTest\\debug\\app-debug-androidTest.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify fail-closed authorization state",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"instrument",
+				"-w",
+				"-r",
+				"-e",
+				"class",
+				"com.xinyv.median.MainActivitySecuritySmokeTest",
+				"com.xinyv.median.compat.debug.test/androidx.test.runner.AndroidJUnitRunner"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Inspect Tailnet authorization logs",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"logcat",
+				"-d",
+				"-s",
+				"TailnetActivity:*",
+				"TailnetSmokeTest:*",
+				"AndroidRuntime:E",
+				"libtailscale:*"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Inspect Tailnet activity state",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"dumpsys",
+				"activity",
+				"activities"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Build Tailnet native error diagnostics",
+			"type": "shell",
+			"command": ".\\gradlew.bat",
+			"args": [
+				":app:assembleDebug",
+				"--no-daemon",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Install Tailnet diagnostic app",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"install",
+				"-r",
+				"C:\\Users\\lijil\\Documents\\VSCode\\Median\\app\\build\\outputs\\apk\\debug\\app-debug.apk"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Launch Tailnet diagnostic activity",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"start",
+				"-W",
+				"-n",
+				"com.xinyv.median.compat.debug/com.xinyv.median.TailnetActivity"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Clear Tailnet diagnostic logs",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"logcat",
+				"-c"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Reproduce Tailnet node startup",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"shell",
+				"am",
+				"instrument",
+				"-w",
+				"-r",
+				"-e",
+				"class",
+				"com.xinyv.median.MainActivitySecuritySmokeTest#tailnetActivityWaitsForLoopbackProxyBeforeCreatingWebView",
+				"com.xinyv.median.compat.debug.test/androidx.test.runner.AndroidJUnitRunner"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Read Tailnet startup error detail",
+			"type": "shell",
+			"command": "C:\\Users\\lijil\\Documents\\SDKs\\android\\platform-tools\\adb.exe",
+			"args": [
+				"-s",
+				"emulator-5554",
+				"logcat",
+				"-d",
+				"-s",
+				"TailnetActivity:*",
+				"TailnetSmokeTest:*",
+				"AndroidRuntime:E"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

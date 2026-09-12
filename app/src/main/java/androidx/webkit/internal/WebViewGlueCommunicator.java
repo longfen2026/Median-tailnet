@@ -24,6 +24,7 @@ import java.util.concurrent.Executor;
 /** Minimal Chromium boundary used by Median for document-start and renderer darkening. */
 public final class WebViewGlueCommunicator {
     private static final String DOCUMENT_START = "DOCUMENT_START_SCRIPT:1";
+    private static final String PROXY_OVERRIDE = "PROXY_OVERRIDE:3";
     private static volatile WebViewProviderFactoryBoundaryInterface factory;
     private static volatile String[] features;
     private static volatile String state = "尚未加载";
@@ -34,7 +35,8 @@ public final class WebViewGlueCommunicator {
     public static boolean isFeatureSupported(String feature) {
         load();
         if (has(feature)) return true;
-        return DOCUMENT_START.equals(feature) && has("DOCUMENT_START_SCRIPT");
+        if (DOCUMENT_START.equals(feature)) return has("DOCUMENT_START_SCRIPT");
+        return "PROXY_OVERRIDE".equals(feature) && has(PROXY_OVERRIDE);
     }
 
     public static ScriptHandler addDocumentStartJavaScript(
@@ -96,7 +98,8 @@ public final class WebViewGlueCommunicator {
 
     public static void setProxyOverride(String proxyUrl, Executor executor, Runnable listener) {
         ProxyControllerBoundaryInterface controller = proxyController();
-        controller.setProxyOverride(new String[][] { { "*", proxyUrl } }, new String[0], listener, executor);
+        controller.setProxyOverride(new String[][] { { "*", proxyUrl } }, new String[0],
+            listener, executor);
     }
 
     public static void clearProxyOverride(Executor executor, Runnable listener) {
@@ -124,7 +127,7 @@ public final class WebViewGlueCommunicator {
 
     private static ProxyControllerBoundaryInterface proxyController() {
         load();
-        if (factory == null || !has("PROXY_OVERRIDE"))
+        if (factory == null || (!has("PROXY_OVERRIDE") && !has(PROXY_OVERRIDE)))
             throw new UnsupportedOperationException("proxy override unavailable");
         try {
             return BoundaryInterfaceReflectionUtil.castToSuppLibClass(

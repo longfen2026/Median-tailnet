@@ -67,7 +67,9 @@ foreach ($target in $targets) {
         $env:GOOS = 'android'
         $env:GOARCH = $target.Arch
         $env:CC = Join-Path $toolchain ($target.Cc + '.cmd')
-        go build -trimpath -buildvcs=false -buildmode=c-shared -o (Join-Path $destination 'libtailscale.so') .
+        go build -trimpath -buildvcs=false -buildmode=c-shared `
+            -ldflags '-extldflags=-Wl,-soname,libtailscale.so' `
+            -o (Join-Path $destination 'libtailscale.so') .
         if ($LASTEXITCODE -ne 0) {
             throw "libtailscale Android build failed for $($target.Abi)"
         }

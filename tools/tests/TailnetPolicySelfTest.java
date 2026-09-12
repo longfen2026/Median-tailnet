@@ -22,6 +22,12 @@ public final class TailnetPolicySelfTest {
                 "isolated Tailnet process rejected");
         check(!TailnetPolicy.mayUseTailnetProxy(":private", "127.0.0.1", 1080),
                 "private profile accepted Tailnet proxy");
+        check("http://127.0.0.1:9080".equals(
+                        TailnetPolicy.normalizeLoopbackHttpProxyUrl("http://127.0.0.1:9080")),
+                "IPv4 HTTP proxy endpoint was not normalized");
+        expectInvalidHttpProxyUrl("http://localhost:9080");
+        expectInvalidHttpProxyUrl("https://127.0.0.1:9080");
+        expectInvalidHttpProxyUrl("http://127.0.0.1:9080/path");
                 check("socks://127.0.0.1:1080".equals(
                                                 TailnetPolicy.normalizeLoopbackSocksUrl("socks5://127.0.0.1:1080")),
                                 "IPv4 SOCKS endpoint was not normalized");
@@ -32,6 +38,15 @@ public final class TailnetPolicySelfTest {
                 expectInvalidSocksUrl("socks5://127.0.0.1:1080/path");
         System.out.println("TailnetPolicySelfTest passed");
     }
+
+        private static void expectInvalidHttpProxyUrl(String source) {
+                try {
+                        TailnetPolicy.normalizeLoopbackHttpProxyUrl(source);
+                        throw new AssertionError("invalid HTTP proxy endpoint accepted: " + source);
+                } catch (IllegalArgumentException expected) {
+                        // Expected.
+                }
+        }
 
         private static void expectInvalidSocksUrl(String source) {
                 try {

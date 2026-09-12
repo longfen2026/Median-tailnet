@@ -15,6 +15,23 @@ final class TailnetPolicy {
         return "127.0.0.1".equals(value) || "::1".equals(value);
     }
 
+    static String normalizeLoopbackHttpProxyUrl(String source) {
+        if (source == null || source.trim().length() == 0)
+            throw new IllegalArgumentException("Tailnet HTTP 代理地址为空");
+        try {
+            URI uri = new URI(source.trim());
+            String host = uri.getHost();
+            int port = uri.getPort();
+            if (!"http".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null ||
+                    !"127.0.0.1".equals(host) || port < 1 || port > 65535 ||
+                    uri.getPath().length() > 0 || uri.getQuery() != null || uri.getFragment() != null)
+                throw new IllegalArgumentException("Tailnet HTTP 代理地址无效");
+            return "http://127.0.0.1:" + port;
+        } catch (URISyntaxException error) {
+            throw new IllegalArgumentException("Tailnet HTTP 代理地址无效");
+        }
+    }
+
     static boolean mayUseTailnetProxy(String processName, String host, int port) {
         return PROCESS_SUFFIX.equals(processName) && isLoopbackSocksEndpoint(host, port);
     }

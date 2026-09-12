@@ -252,6 +252,10 @@ int tailnet_connect_adapter_address(
     return length > 0 && (size_t) length < buffer_size ? 0 : -1;
 }
 
+tailscale tailnet_connect_adapter_node(tailnet_connect_adapter *adapter) {
+    return adapter == NULL ? -1 : adapter->node;
+}
+
 void tailnet_connect_adapter_stop(tailnet_connect_adapter *adapter) {
     adapter_connection *connection;
     if (adapter == NULL) return;

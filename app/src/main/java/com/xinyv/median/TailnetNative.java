@@ -38,6 +38,16 @@ final class TailnetNative {
             + (detail == null || detail.length() == 0 ? "未知错误" : detail));
     }
 
+    static void updateNetwork(int handle, TailnetNetworkSnapshot.Snapshot network) {
+        if (handle <= 0) throw new IllegalArgumentException("Tailnet 节点无效");
+        if (network == null) throw new NullPointerException("network");
+        if (nativeUpdateNetwork(handle, network.interfacesJson, network.defaultInterfaceName) == 0)
+            return;
+        String detail = nativeLastError(handle);
+        throw new IllegalStateException("无法更新 Tailnet 网络: "
+            + (detail == null || detail.length() == 0 ? "未知错误" : detail));
+    }
+
     static TailnetStatus status(int handle) {
         if (handle <= 0) throw new IllegalArgumentException("Tailnet 节点无效");
         String json = nativeStatusJson(handle);
@@ -103,6 +113,8 @@ final class TailnetNative {
             String defaultInterfaceName);
     static native int nativeCloseNode(int handle);
     static native int nativeStartNode(int handle);
+        static native int nativeUpdateNetwork(int handle, String interfacesJson,
+            String defaultInterfaceName);
     static native String nativeCreateLoopbackSocksAddress(int handle);
     static native long nativeStartConnectAdapter(int handle);
     static native String nativeConnectAdapterAddress(long adapterHandle);

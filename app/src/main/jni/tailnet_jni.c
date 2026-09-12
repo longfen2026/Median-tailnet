@@ -1,10 +1,111 @@
 #include <jni.h>
+#include <android/log.h>
+#include <errno.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "tailscale.h"
 #include "tailnet_connect_adapter.h"
+
+#define TAILNET_LOG_TAG "MedianTailnet"
+
+typedef struct tailnet_log_bridge {
+    tailscale node;
+    int read_fd;
+    pthread_t thread;
+    struct tailnet_log_bridge *next;
+} tailnet_log_bridge;
+
+static pthread_mutex_t log_bridges_mutex = PTHREAD_MUTEX_INITIALIZER;
+static tailnet_log_bridge *log_bridges;
+
+static void log_tailnet_line(const char *line, size_t length) {
+    while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r')) --length;
+    if (length > 0) __android_log_print(ANDROID_LOG_INFO, TAILNET_LOG_TAG,
+            "%.*s", (int) length, line);
+}
+
+static void *tailnet_log_main(void *argument) {
+    tailnet_log_bridge *bridge = argument;
+    char incoming[2048];
+    char line[4096];
+    size_t line_length = 0;
+    for (;;) {
+        ssize_t length = read(bridge->read_fd, incoming, sizeof(incoming));
+        if (length < 0 && errno == EINTR) continue;
+        if (length <= 0) break;
+        for (ssize_t index = 0; index < length; ++index) {
+            char value = incoming[index];
+            if (value == '\n') {
+                log_tailnet_line(line, line_length);
+                line_length = 0;
+            } else if (line_length < sizeof(line) - 1) {
+                line[line_length++] = value;
+            } else {
+                log_tailnet_line(line, line_length);
+                line_length = 0;
+                line[line_length++] = value;
+            }
+        }
+    }
+    log_tailnet_line(line, line_length);
+    close(bridge->read_fd);
+    return NULL;
+}
+
+static int start_tailnet_log_bridge(tailscale node) {
+    int descriptors[2] = {-1, -1};
+    int log_fd = -1;
+    tailnet_log_bridge *bridge = calloc(1, sizeof(*bridge));
+    if (bridge == NULL || pipe(descriptors) != 0) {
+        free(bridge);
+        return -1;
+    }
+    bridge->node = node;
+    bridge->read_fd = descriptors[0];
+    log_fd = dup(descriptors[1]);
+    if (log_fd < 0 || tailscale_set_logfd(node, log_fd) != 0
+            || pthread_create(&bridge->thread, NULL, tailnet_log_main, bridge) != 0) {
+        tailscale_set_logfd(node, -1);
+        close(descriptors[0]);
+        close(descriptors[1]);
+        if (log_fd >= 0) close(log_fd);
+        free(bridge);
+        return -1;
+    }
+    close(descriptors[1]);
+    pthread_mutex_lock(&log_bridges_mutex);
+    bridge->next = log_bridges;
+    log_bridges = bridge;
+    pthread_mutex_unlock(&log_bridges_mutex);
+    return 0;
+}
+
+static void stop_tailnet_log_bridge(tailscale node) {
+    tailnet_log_bridge **current;
+    tailnet_log_bridge *bridge = NULL;
+    pthread_mutex_lock(&log_bridges_mutex);
+    current = &log_bridges;
+    while (*current != NULL && (*current)->node != node) current = &(*current)->next;
+    if (*current != NULL) {
+        bridge = *current;
+        *current = bridge->next;
+    }
+    pthread_mutex_unlock(&log_bridges_mutex);
+    if (bridge == NULL) return;
+    tailscale_set_logfd(node, -1);
+    pthread_join(bridge->thread, NULL);
+    free(bridge);
+}
+
+static int close_tailnet_node(tailscale node) {
+    int result = tailscale_close(node);
+    stop_tailnet_log_bridge(node);
+    return result;
+}
 
 JNIEXPORT jint JNICALL
 Java_com_xinyv_median_TailnetNative_nativeCreateNode(
@@ -36,7 +137,9 @@ Java_com_xinyv_median_TailnetNative_nativeCreateNode(
         (*env)->ReleaseStringUTFChars(env, state_directory, directory);
         return -1;
     }
-    tailscale_set_logfd(node, -1);
+    if (start_tailnet_log_bridge(node) != 0)
+        __android_log_print(ANDROID_LOG_WARN, TAILNET_LOG_TAG,
+                "Unable to attach libtailscale log bridge");
     (*env)->ReleaseStringUTFChars(env, default_interface, default_name);
     (*env)->ReleaseStringUTFChars(env, interfaces_json, interfaces);
     (*env)->ReleaseStringUTFChars(env, state_directory, directory);
@@ -48,7 +151,7 @@ Java_com_xinyv_median_TailnetNative_nativeCloseNode(
         JNIEnv *env, jclass clazz, jint handle) {
     (void) env;
     (void) clazz;
-    return tailscale_close(handle);
+    return close_tailnet_node(handle);
 }
 
 JNIEXPORT jint JNICALL
@@ -57,6 +160,25 @@ Java_com_xinyv_median_TailnetNative_nativeStartNode(
     (void) env;
     (void) clazz;
     return tailscale_start(handle);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_xinyv_median_TailnetNative_nativeUpdateNetwork(
+        JNIEnv *env, jclass clazz, jint handle,
+        jstring interfaces_json, jstring default_interface) {
+    (void) clazz;
+    if (handle <= 0 || interfaces_json == NULL || default_interface == NULL) return -1;
+    const char *interfaces = (*env)->GetStringUTFChars(env, interfaces_json, NULL);
+    if (interfaces == NULL) return -1;
+    const char *default_name = (*env)->GetStringUTFChars(env, default_interface, NULL);
+    if (default_name == NULL) {
+        (*env)->ReleaseStringUTFChars(env, interfaces_json, interfaces);
+        return -1;
+    }
+    int result = tailscale_update_android_network(handle, interfaces, default_name);
+    (*env)->ReleaseStringUTFChars(env, default_interface, default_name);
+    (*env)->ReleaseStringUTFChars(env, interfaces_json, interfaces);
+    return result;
 }
 
 JNIEXPORT jstring JNICALL
@@ -107,8 +229,11 @@ Java_com_xinyv_median_TailnetNative_nativeStopConnectAdapter(
         JNIEnv *env, jclass clazz, jlong adapter_handle) {
     (void) env;
     (void) clazz;
-    tailnet_connect_adapter_stop(
-            (tailnet_connect_adapter *) (intptr_t) adapter_handle);
+        tailnet_connect_adapter *adapter =
+            (tailnet_connect_adapter *) (intptr_t) adapter_handle;
+        tailscale node = tailnet_connect_adapter_node(adapter);
+        tailnet_connect_adapter_stop(adapter);
+        stop_tailnet_log_bridge(node);
 }
 
 JNIEXPORT jstring JNICALL

@@ -2,7 +2,7 @@ name: Signed Tailnet release
 
 on:
   push:
-    tags: ['tailnet-v*']
+    tags: ['v*-tailnet']
 
 permissions:
   contents: write
@@ -21,7 +21,7 @@ jobs:
         with:
           gradle-version: '8.13'
       - name: Verify tag and app version
-        run: ./tools/verify_release_tag.sh "${GITHUB_REF_NAME#tailnet-}"
+        run: ./tools/verify_release_tag.sh "$GITHUB_REF_NAME"
       - name: Restore signing key
         env:
           KEYSTORE_B64: ${{ secrets.MEDIAN_KEYSTORE_BASE64 }}

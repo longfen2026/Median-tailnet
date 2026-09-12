@@ -101,8 +101,12 @@ android {
 
 def buildLibTailscale = tasks.register('buildLibTailscale', Exec) {
     workingDir rootProject.projectDir
-    commandLine 'powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-            'tools/build_libtailscale_android.ps1'
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                'tools/build_libtailscale_android.ps1'
+    } else {
+        commandLine 'bash', 'tools/build_libtailscale_android.sh'
+    }
 }
 
 def verifyLibTailscaleArtifacts = tasks.register('verifyLibTailscaleArtifacts') {
@@ -114,6 +118,12 @@ def verifyLibTailscaleArtifacts = tasks.register('verifyLibTailscaleArtifacts') 
                 throw new GradleException("Missing libtailscale artifact for ${abi}: ${library}")
             }
         }
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith('configureNdkBuild')) {
+        dependsOn verifyLibTailscaleArtifacts
     }
 }
 

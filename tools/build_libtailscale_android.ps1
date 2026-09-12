@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repoRoot 'third_party\libtailscale'
+$patchFile = Join-Path $repoRoot 'tools\patches\libtailscale-android-network.patch'
 $commit = '59d4bb82744915815178e0f0776d60026a397ee7'
 $expectedGo = 'go1.25.5'
 $expectedNdk = '28.2.13676358'
@@ -46,6 +47,21 @@ if ($actualCommit -ne $commit) {
     }
     git -C $sourceRoot fetch --depth 1 origin $commit
     git -C $sourceRoot checkout --detach $commit
+}
+& git -C $sourceRoot reset --hard $commit
+if ($LASTEXITCODE -ne 0) { throw "Unable to reset libtailscale to $commit" }
+& git -C $sourceRoot clean -fd
+if ($LASTEXITCODE -ne 0) { throw 'Unable to clean the libtailscale working tree' }
+if (-not (Test-Path $patchFile)) {
+    throw "Missing libtailscale Android network patch: $patchFile"
+}
+& git -C $sourceRoot apply --check $patchFile 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw 'libtailscale source does not match the pinned Android network patch'
+}
+& git -C $sourceRoot apply $patchFile
+if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to apply the libtailscale Android network patch'
 }
 
 $outputRoot = Join-Path $repoRoot $OutputRoot

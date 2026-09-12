@@ -33,7 +33,7 @@ jobs:
       - name: Static security checks
         run: bash ./tools/static_checks.sh
       - name: Lint, tests and build
-        run: ./gradlew --no-daemon clean lintDebug testDebugUnitTest assembleDebug bundleRelease
+        run: bash ./gradlew --no-daemon clean lintDebug testDebugUnitTest assembleDebug bundleRelease
       - name: Checksums
         run: sha256sum app/build/outputs/apk/debug/app-debug.apk app/build/outputs/bundle/release/app-release.aab | tee SHA256SUMS.txt
       - uses: actions/upload-artifact@v4

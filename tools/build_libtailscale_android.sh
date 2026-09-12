@@ -4,6 +4,7 @@ set -euo pipefail
 readonly REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 readonly SOURCE_ROOT="$REPO_ROOT/third_party/libtailscale"
 readonly OUTPUT_ROOT="${OUTPUT_ROOT:-$REPO_ROOT/build/libtailscale}"
+readonly PATCH_FILE="$REPO_ROOT/tools/patches/libtailscale-android-network.patch"
 readonly COMMIT='59d4bb82744915815178e0f0776d60026a397ee7'
 readonly EXPECTED_GO='go1.25.5'
 readonly EXPECTED_NDK='28.2.13676358'
@@ -42,6 +43,17 @@ if [[ "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" != "$COMMIT" ]]; then
   git -C "$SOURCE_ROOT" fetch --depth 1 origin "$COMMIT"
   git -C "$SOURCE_ROOT" checkout --detach "$COMMIT"
 fi
+git -C "$SOURCE_ROOT" reset --hard "$COMMIT"
+git -C "$SOURCE_ROOT" clean -fd
+[[ -f "$PATCH_FILE" ]] || {
+  echo "Missing libtailscale Android network patch: $PATCH_FILE" >&2
+  exit 1
+}
+if ! git -C "$SOURCE_ROOT" apply --check "$PATCH_FILE" >/dev/null 2>&1; then
+  echo "libtailscale source does not match the pinned Android network patch" >&2
+  exit 1
+fi
+git -C "$SOURCE_ROOT" apply "$PATCH_FILE"
 
 rm -rf "$OUTPUT_ROOT"
 for target in 'arm64-v8a:arm64:aarch64-linux-android26-clang' 'armeabi-v7a:arm:armv7a-linux-androideabi26-clang' 'x86_64:amd64:x86_64-linux-android26-clang'; do

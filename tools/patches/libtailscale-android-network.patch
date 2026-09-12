@@ -1,0 +1,299 @@
+diff --git a/tailscale.c b/tailscale.c
+index 420d67e..d9c0929 100644
+--- a/tailscale.c
++++ b/tailscale.c
+@@ -18,6 +18,8 @@ extern int TsnetSetHostname(int sd, char* str);
+ extern int TsnetSetAuthKey(int sd, char* str);
+ extern int TsnetSetControlURL(int sd, char* str);
+ extern int TsnetSetEphemeral(int sd, int ephemeral);
++extern int TsnetSetAndroidNetwork(int sd, char* interfacesJSON, char* defaultInterface);
++extern int TsnetUpdateAndroidNetwork(int sd, char* interfacesJSON, char* defaultInterface);
+ extern int TsnetSetLogFD(int sd, int fd);
+ extern int TsnetGetIps(int sd, char *buf, size_t buflen);
+ extern int TsnetGetRemoteAddr(int listener, int conn, char *buf, size_t buflen);
+@@ -78,6 +80,12 @@ int tailscale_set_control_url(tailscale sd, const char* control_url) {
+ int tailscale_set_ephemeral(tailscale sd, int ephemeral) {
+ 	return TsnetSetEphemeral(sd, ephemeral);
+ }
++int tailscale_set_android_network(tailscale sd, const char* interfaces_json, const char* default_interface) {
++	return TsnetSetAndroidNetwork(sd, (char*)interfaces_json, (char*)default_interface);
++}
++int tailscale_update_android_network(tailscale sd, const char* interfaces_json, const char* default_interface) {
++	return TsnetUpdateAndroidNetwork(sd, (char*)interfaces_json, (char*)default_interface);
++}
+ int tailscale_set_logfd(tailscale sd, int fd) {
+ 	return TsnetSetLogFD(sd, fd);
+ }
+diff --git a/tailscale.go b/tailscale.go
+index 316efdd..0685924 100644
+--- a/tailscale.go
++++ b/tailscale.go
+@@ -14,7 +14,10 @@ import (
+ 	"io"
+ 	"net"
+ 	"os"
++	"reflect"
+ 	"regexp"
++	"runtime"
++	"slices"
+ 	"strconv"
+ 	"strings"
+ 	"sync"
+@@ -25,6 +28,8 @@ import (
+ 	"golang.org/x/sys/unix"
+ 	"tailscale.com/hostinfo"
+ 	"tailscale.com/ipn"
++	"tailscale.com/net/netmon"
++	"tailscale.com/paths"
+ 	"tailscale.com/tsnet"
+ 	"tailscale.com/types/logger"
+ )
+@@ -39,9 +44,12 @@ var servers struct {
+ }
+ 
+ type server struct {
+-	s       *tsnet.Server
+-	lastErr string
+-	started bool
++	s                   *tsnet.Server
++	lastErr             string
++	started             bool
++	androidInterfaces   []netmon.Interface
++	androidDefaultRoute string
++	androidNetworkMu    sync.RWMutex
+ }
+ 
+ func getServer(sd C.int) *server {
+@@ -110,6 +118,26 @@ func TsnetStart(sd C.int) C.int {
+ 	if s == nil {
+ 		return C.EBADF
+ 	}
++	if runtime.GOOS == "android" {
++		if s.s.Dir == "" {
++			return s.recErr(fmt.Errorf("libtailscale: Android state directory is not configured"))
++		}
++		if err := os.MkdirAll(s.s.Dir, 0700); err != nil {
++			return s.recErr(fmt.Errorf("libtailscale: create Android state directory: %w", err))
++		}
++		if err := os.Setenv("TS_LOGS_DIR", s.s.Dir); err != nil {
++			return s.recErr(fmt.Errorf("libtailscale: configure Android logs directory: %w", err))
++		}
++		paths.AppSharedDir.Store(s.s.Dir)
++	}
++	if s.androidInterfaces != nil {
++		netmon.RegisterInterfaceGetter(func() ([]netmon.Interface, error) {
++			s.androidNetworkMu.RLock()
++			defer s.androidNetworkMu.RUnlock()
++			return slices.Clone(s.androidInterfaces), nil
++		})
++		netmon.UpdateLastKnownDefaultRouteInterface(s.androidDefaultRoute)
++	}
+ 	err := s.s.Start()
+ 	if err == nil {
+ 		s.started = true
+@@ -512,6 +540,57 @@ func TsnetSetEphemeral(sd C.int, e int) C.int {
+ 	return 0
+ }
+ 
++//export TsnetSetAndroidNetwork
++func TsnetSetAndroidNetwork(sd C.int, interfacesJSON, defaultInterface *C.char) C.int {
++	s := getServer(sd)
++	if s == nil {
++		return C.EBADF
++	}
++	if s.started {
++		return s.recErr(fmt.Errorf("Android network snapshot must be set before start"))
++	}
++	interfaces, err := parseAndroidNetworkInterfaces(C.GoString(interfacesJSON))
++	if err != nil {
++		return s.recErr(err)
++	}
++	if len(interfaces) == 0 {
++		return s.recErr(fmt.Errorf("Android network snapshot contains no interfaces"))
++	}
++	s.androidInterfaces = interfaces
++	s.androidDefaultRoute = C.GoString(defaultInterface)
++	return s.recErr(nil)
++}
++
++//export TsnetUpdateAndroidNetwork
++func TsnetUpdateAndroidNetwork(sd C.int, interfacesJSON, defaultInterface *C.char) C.int {
++	s := getServer(sd)
++	if s == nil {
++		return C.EBADF
++	}
++	interfaces, err := parseAndroidNetworkInterfaces(C.GoString(interfacesJSON))
++	if err != nil {
++		return s.recErr(err)
++	}
++	if len(interfaces) == 0 {
++		return s.recErr(fmt.Errorf("Android network snapshot contains no interfaces"))
++	}
++	s.androidNetworkMu.Lock()
++	s.androidInterfaces = interfaces
++	defaultRoute := C.GoString(defaultInterface)
++	s.androidDefaultRoute = defaultRoute
++	s.androidNetworkMu.Unlock()
++	netmon.UpdateLastKnownDefaultRouteInterface(defaultRoute)
++	serverValue := reflect.ValueOf(s.s)
++	if !serverValue.IsNil() {
++		monitorField := serverValue.Elem().FieldByName("netMon")
++		if monitorField.IsValid() && !monitorField.IsNil() {
++			monitor := *(**netmon.Monitor)(unsafe.Pointer(monitorField.UnsafeAddr()))
++			monitor.InjectEvent()
++		}
++	}
++	return s.recErr(nil)
++}
++
+ //export TsnetSetLogFD
+ func TsnetSetLogFD(sd, fd C.int) C.int {
+ 	s := getServer(sd)
+diff --git a/tailscale.h b/tailscale.h
+index 9bc8e7c..a866457 100644
+--- a/tailscale.h
++++ b/tailscale.h
+@@ -68,6 +68,24 @@ extern int tailscale_set_authkey(tailscale sd, const char* authkey);
+ extern int tailscale_set_control_url(tailscale sd, const char* control_url);
+ extern int tailscale_set_ephemeral(tailscale sd, int ephemeral);
+ 
++// tailscale_set_android_network supplies the interface snapshot that Android
++// applications must obtain outside Go's sandboxed netlink implementation.
++// interfaces_json is an array of objects containing name, index, mtu, flags,
++// and addrs entries with ip and prefixLen fields.
++//
++// Configure this before tailscale_start. Returns zero on success or -1 on
++// malformed input; call tailscale_errmsg for details.
++extern int tailscale_set_android_network(tailscale sd, const char* interfaces_json,
++	const char* default_interface);
++
++// tailscale_update_android_network replaces the Android interface snapshot and
++// wakes the running network monitor so sockets can rebind after path changes.
++//
++// Returns zero on success or -1 on malformed input; call tailscale_errmsg for
++// details.
++extern int tailscale_update_android_network(tailscale sd, const char* interfaces_json,
++	const char* default_interface);
++
+ // tailscale_set_logfd instructs the tailscale instance to write logs to fd.
+ //
+ // An fd value of -1 means discard all logging.
+diff --git a/android_network.go b/android_network.go
+new file mode 100644
+index 0000000..21c0633
+--- /dev/null
++++ b/android_network.go
+@@ -0,0 +1,74 @@
++package main
++
++import (
++	"encoding/json"
++	"fmt"
++	"net"
++	"net/netip"
++
++	"tailscale.com/net/netmon"
++)
++
++type androidNetworkAddress struct {
++	IP        string `json:"ip"`
++	PrefixLen int    `json:"prefixLen"`
++}
++
++type androidNetworkInterface struct {
++	Name         string                  `json:"name"`
++	Index        int                     `json:"index"`
++	MTU          int                     `json:"mtu"`
++	Up           bool                    `json:"up"`
++	Broadcast    bool                    `json:"broadcast"`
++	Loopback     bool                    `json:"loopback"`
++	PointToPoint bool                    `json:"pointToPoint"`
++	Multicast    bool                    `json:"multicast"`
++	Addrs        []androidNetworkAddress `json:"addrs"`
++}
++
++func parseAndroidNetworkInterfaces(data string) ([]netmon.Interface, error) {
++	var snapshot []androidNetworkInterface
++	if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
++		return nil, fmt.Errorf("invalid Android interface snapshot: %w", err)
++	}
++	interfaces := make([]netmon.Interface, 0, len(snapshot))
++	for _, value := range snapshot {
++		if value.Name == "" || value.Index < 0 || value.MTU < 0 {
++			return nil, fmt.Errorf("invalid Android interface metadata")
++		}
++		standard := &net.Interface{Name: value.Name, Index: value.Index, MTU: value.MTU}
++		if value.Up {
++			standard.Flags |= net.FlagUp
++		}
++		if value.Broadcast {
++			standard.Flags |= net.FlagBroadcast
++		}
++		if value.Loopback {
++			standard.Flags |= net.FlagLoopback
++		}
++		if value.PointToPoint {
++			standard.Flags |= net.FlagPointToPoint
++		}
++		if value.Multicast {
++			standard.Flags |= net.FlagMulticast
++		}
++		addresses := make([]net.Addr, 0, len(value.Addrs))
++		for _, address := range value.Addrs {
++			ip, err := netip.ParseAddr(address.IP)
++			if err != nil {
++				return nil, fmt.Errorf("invalid Android interface address %q: %w", address.IP, err)
++			}
++			bits := 128
++			if ip.Is4() {
++				bits = 32
++			}
++			if address.PrefixLen < 0 || address.PrefixLen > bits {
++				return nil, fmt.Errorf("invalid Android prefix length %d", address.PrefixLen)
++			}
++			mask := net.CIDRMask(address.PrefixLen, bits)
++			addresses = append(addresses, &net.IPNet{IP: net.IP(ip.AsSlice()), Mask: mask})
++		}
++		interfaces = append(interfaces, netmon.Interface{Interface: standard, AltAddrs: addresses})
++	}
++	return interfaces, nil
++}
+diff --git a/android_network_test.go b/android_network_test.go
+new file mode 100644
+index 0000000..dbef702
+--- /dev/null
++++ b/android_network_test.go
+@@ -0,0 +1,33 @@
++package main
++
++import (
++	"net"
++	"testing"
++)
++
++func TestParseAndroidNetworkInterfaces(t *testing.T) {
++	interfaces, err := parseAndroidNetworkInterfaces(`[{"name":"wlan0","index":30,"mtu":1500,"up":true,"broadcast":true,"loopback":false,"pointToPoint":false,"multicast":true,"addrs":[{"ip":"10.1.10.131","prefixLen":24},{"ip":"fe80::1%wlan0","prefixLen":64}]}]`)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(interfaces) != 1 || interfaces[0].Name != "wlan0" {
++		t.Fatalf("unexpected interfaces: %+v", interfaces)
++	}
++	if interfaces[0].Flags&net.FlagUp == 0 || interfaces[0].Flags&net.FlagMulticast == 0 {
++		t.Fatalf("missing interface flags: %v", interfaces[0].Flags)
++	}
++	addresses, err := interfaces[0].Addrs()
++	if err != nil || len(addresses) != 2 {
++		t.Fatalf("unexpected addresses: %v, %v", addresses, err)
++	}
++	if got := addresses[0].String(); got != "10.1.10.131/24" {
++		t.Fatalf("first address = %q", got)
++	}
++}
++
++func TestParseAndroidNetworkInterfacesRejectsInvalidAddress(t *testing.T) {
++	_, err := parseAndroidNetworkInterfaces(`[{"name":"wlan0","index":1,"mtu":1500,"up":true,"addrs":[{"ip":"invalid","prefixLen":24}]}]`)
++	if err == nil {
++		t.Fatal("invalid address accepted")
++	}
++}

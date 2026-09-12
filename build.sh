@@ -9,7 +9,8 @@ if [[ "${1:-}" == "--release" ]]; then
     [[ -n "${!name:-}" ]] || { echo "Missing release signing variable: $name" >&2; exit 1; }
   done
   [[ -f "$MEDIAN_KEYSTORE" ]] || { echo "Release keystore not found: $MEDIAN_KEYSTORE" >&2; exit 1; }
-  bash "$GRADLE" clean lintRelease testReleaseUnitTest assembleRelease bundleRelease
+  bash "$GRADLE" clean lintRelease testReleaseUnitTest bundleRelease
+  bash "$GRADLE" -Pmedian.enableAbiSplits assembleRelease
   echo "Release outputs: app/build/outputs/apk/release and app/build/outputs/bundle/release"
 else
   bash "$GRADLE" clean lintDebug testDebugUnitTest assembleDebug

@@ -35,7 +35,7 @@ jobs:
           MEDIAN_STOREPASS: ${{ secrets.MEDIAN_STOREPASS }}
           MEDIAN_KEY_ALIAS: ${{ secrets.MEDIAN_KEY_ALIAS }}
           MEDIAN_KEYPASS: ${{ secrets.MEDIAN_KEYPASS }}
-        run: ./build.sh --release
+        run: bash ./build.sh --release
       - name: Package release files
         run: |
           mkdir -p release

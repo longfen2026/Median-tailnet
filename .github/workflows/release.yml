@@ -1,8 +1,7 @@
 name: Signed release
 
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,7 +20,7 @@ jobs:
         with:
           gradle-version: '8.13'
       - name: Verify tag and app version
-        run: ./tools/verify_release_tag.sh "$GITHUB_REF_NAME"
+        run: bash ./tools/verify_release_tag.sh "$GITHUB_REF_NAME"
       - name: Restore signing key
         env:
           KEYSTORE_B64: ${{ secrets.MEDIAN_KEYSTORE_BASE64 }}
@@ -35,7 +34,7 @@ jobs:
           MEDIAN_STOREPASS: ${{ secrets.MEDIAN_STOREPASS }}
           MEDIAN_KEY_ALIAS: ${{ secrets.MEDIAN_KEY_ALIAS }}
           MEDIAN_KEYPASS: ${{ secrets.MEDIAN_KEYPASS }}
-        run: ./build.sh --release
+        run: bash ./build.sh --release
       - name: Package release files
         run: |
           mkdir -p release
